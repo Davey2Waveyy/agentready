@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fade Street Barbers · Hamilton</title>
+  <meta name="description" content="Fades, tapers, beard work and hot towel shaves on James St North, Hamilton.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="/agentready.js" data-config="agentready.json" data-api="/api" defer></script>
+  <style>
+    :root {
+      --bg: #15110e; --panel: #1e1915; --line: #3a3029; --text: #f3ebe1; --muted: #b3a593;
+      --brass: #c9a25e; --red: #b8332a; --cream: #f3ebe1;
+      --display: 'Fraunces', Georgia, serif; --body: 'Inter Tight', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+    a { color: inherit; }
+    .wrap { width: min(1080px, 100% - 32px); margin-inline: auto; }
+
+    header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
+    .logo { display: flex; align-items: center; gap: 10px; font: 700 19px var(--display); text-decoration: none; letter-spacing: -.01em; }
+    .pole { width: 10px; height: 28px; border-radius: 5px; background: repeating-linear-gradient(135deg, var(--red) 0 5px, var(--cream) 5px 10px, #2b4a8b 10px 15px, var(--cream) 15px 20px); background-size: 100% 28px; animation: spin 2.4s linear infinite; }
+    @keyframes spin { to { background-position: 0 28px; } }
+    @media (prefers-reduced-motion: reduce) { .pole { animation: none; } html { scroll-behavior: auto; } }
+    nav { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
+    nav a { text-decoration: none; } nav a:hover { color: var(--text); }
+    @media (max-width: 640px) { nav .hide-sm { display: none; } }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border-radius: 999px; background: var(--brass); color: #1a140d; font-weight: 600; text-decoration: none; border: 0; font-size: 15px; }
+    .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .btn:hover { filter: brightness(1.08); }
+
+    .hero { padding: clamp(56px, 12vw, 120px) 0 clamp(48px, 8vw, 88px); border-bottom: 1px solid var(--line); }
+    .status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; margin-bottom: 28px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .dot.open { background: #5fbf7a; box-shadow: 0 0 0 4px rgba(95, 191, 122, .18); }
+    h1 { font: 700 clamp(44px, 9vw, 96px)/.98 var(--display); letter-spacing: -.035em; margin: 0 0 24px; max-width: 12ch; }
+    h1 em { font-style: normal; color: var(--brass); }
+    .lede { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); max-width: 46ch; margin: 0 0 32px; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    section { padding: clamp(48px, 8vw, 88px) 0; border-bottom: 1px solid var(--line); }
+    .eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--brass); margin: 0 0 10px; }
+    h2 { font: 700 clamp(30px, 5vw, 44px)/1.05 var(--display); letter-spacing: -.02em; margin: 0 0 32px; }
+
+    .menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 48px; }
+    .item { display: grid; grid-template-columns: 1fr auto; gap: 2px 16px; padding: 18px 0; border-top: 1px solid var(--line); }
+    .item b { font: 600 18px var(--body); }
+    .item .price { font: 700 20px var(--display); color: var(--brass); }
+    .item small { color: var(--muted); font-size: 14px; grid-column: 1 / -1; }
+
+    .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 48px; }
+    table { width: 100%; border-collapse: collapse; font-size: 16px; }
+    td { padding: 11px 0; border-top: 1px solid var(--line); }
+    td:last-child { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+    tr.today td { color: var(--text); font-weight: 600; }
+    address { font-style: normal; font-size: 18px; line-height: 1.6; margin-bottom: 20px; }
+
+    #book { text-align: center; }
+    #book h2 { margin-bottom: 12px; }
+    #book p { color: var(--muted); margin: 0 auto 28px; max-width: 44ch; }
+    #book .cta { justify-content: center; }
+
+    footer { padding: 32px 0 48px; color: var(--muted); font-size: 13px; }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+    .agent { display: inline-flex; align-items: center; gap: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a class="logo" href="#"><span class="pole" aria-hidden="true"></span>Fade Street</a>
+      <nav><a href="#services">Services</a><a class="hide-sm" href="#hours">Hours</a><a class="hide-sm" href="#visit">Visit</a></nav>
+      <a class="btn" href="#book">Book</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="hero">
+      <div class="wrap">
+        <p class="status"><span class="dot" id="dot"></span><span id="status">James St North, Hamilton</span></p>
+        <h1>Sharp cuts on <em>James North.</em></h1>
+        <p class="lede">Skin fades, classic tapers, beard work and hot towel shaves. Four chairs, good music, no rush.</p>
+        <div class="cta"><a class="btn" href="#book">Book a chair</a><a class="btn ghost" href="#services">See prices</a></div>
+      </div>
+    </div>
+
+    <section id="services">
+      <div class="wrap">
+        <p class="eyebrow">Services</p>
+        <h2>Prices</h2>
+        <div class="menu">
+          <div class="item"><b>Skin Fade</b><span class="price">$40</span><small>45 min · bald to blended, finished with a straight-razor line-up</small></div>
+          <div class="item"><b>Classic Cut</b><span class="price">$32</span><small>30 min · scissor or clipper, tapered and styled</small></div>
+          <div class="item"><b>Beard Trim &amp; Line-up</b><span class="price">$20</span><small>20 min · shape, line, hot towel</small></div>
+          <div class="item"><b>Cut + Beard</b><span class="price">$55</span><small>60 min · any cut with full beard work</small></div>
+          <div class="item"><b>Hot Towel Shave</b><span class="price">$38</span><small>40 min · straight razor, pre-shave oil, two hot towels</small></div>
+          <div class="item"><b>Kids Cut (12 &amp; under)</b><span class="price">$24</span><small>25 min · patient barbers, lollipop included</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="hours">
+      <div class="wrap split">
+        <div>
+          <p class="eyebrow">Hours</p>
+          <h2>When we're in</h2>
+          <table id="hours-table">
+            <tr data-day="mon"><td>Monday</td><td>Closed</td></tr>
+            <tr data-day="tue"><td>Tuesday</td><td>10 am – 7 pm</td></tr>
+            <tr data-day="wed"><td>Wednesday</td><td>10 am – 7 pm</td></tr>
+            <tr data-day="thu"><td>Thursday</td><td>10 am – 8 pm</td></tr>
+            <tr data-day="fri"><td>Friday</td><td>10 am – 8 pm</td></tr>
+            <tr data-day="sat"><td>Saturday</td><td>9 am – 5 pm</td></tr>
+            <tr data-day="sun"><td>Sunday</td><td>11 am – 4 pm</td></tr>
+          </table>
+        </div>
+        <div id="visit">
+          <p class="eyebrow">Visit</p>
+          <h2>Find us</h2>
+          <address>214 James St N<br>Hamilton, ON L8R 2L3<br><a href="tel:+19055550142">(905) 555-0142</a></address>
+          <a class="btn ghost" href="https://www.google.com/maps/search/?api=1&query=James+St+N+Hamilton+ON" target="_blank" rel="noopener">Open in Maps</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="book">
+      <div class="wrap">
+        <p class="eyebrow">Appointments</p>
+        <h2>Grab a chair</h2>
+        <p>Book online, call us, or ask your AI assistant. Walk-ins welcome when a chair is free.</p>
+        <div class="cta"><a class="btn" id="book-link" href="tel:+19055550142">Book online</a><a class="btn ghost" href="tel:+19055550142">Call the shop</a></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© Fade Street Barbers · Demo business for AgentReady</span>
+      <span class="agent" id="agent-status"></span>
+    </div>
+  </footer>
+
+  <script type="module">
+    // Page's own UI reuses the same config AgentReady exposes to agents.
+    const { config, tools, webmcp } = await window.AgentReady.ready;
+    const info = await tools.find((t) => t.name === 'get_business_info').execute({});
+    document.getElementById('dot').classList.toggle('open', info.open_now);
+    document.getElementById('status').textContent = `${info.open_now ? 'Open now' : 'Closed now'} · James St North, Hamilton`;
+    document.querySelector(`tr[data-day="${info.local_time.slice(-4, -1)}"]`)?.classList.add('today');
+    if (config.booking.url?.startsWith('http')) document.getElementById('book-link').href = config.booking.url;
+    document.getElementById('agent-status').textContent = webmcp ? `Agent-ready · ${tools.length} WebMCP tools live` : 'Agent-ready';
+  </script>
+</body>
+</html>

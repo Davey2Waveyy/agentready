@@ -1,0 +1,75 @@
+// Shared by the API routes. Files starting with _ are not deployed as routes on Vercel.
+// ponytail: single tenant (the demo barbershop); load config per host/site id when there is a second business
+import config from '../public/barbershop/agentready.json' with { type: 'json' };
+
+export { config };
+export const MOCK = !config.booking.username; // no Cal.com account yet → fake slots + bookings, flagged mock:true
+const CAL = 'https://api.cal.com/v2';
+
+export const json = (body, status = 200) => Response.json(body, { status });
+export const service = (id) => config.services.find((s) => s.id === id);
+
+export function local(when, timeZone = config.timezone) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone, weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(when).map((x) => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, day: p.weekday.slice(0, 3).toLowerCase(), hm: `${p.hour}:${p.minute}` };
+}
+
+const label = (iso) => new Date(iso).toLocaleTimeString('en-CA', { timeZone: config.timezone, hour: 'numeric', minute: '2-digit' });
+
+async function cal(path, init = {}) {
+  const res = await fetch(CAL + path, {
+    ...init,
+    headers: {
+      'content-type': 'application/json',
+      'cal-api-version': '2024-08-13',
+      ...(process.env.CAL_API_KEY && { authorization: `Bearer ${process.env.CAL_API_KEY}` }),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error?.message || data.message || `Cal.com ${res.status}`), { status: res.status });
+  return data.data;
+}
+
+const mockBooked = new Set(); // ponytail: per-instance memory, mock only
+
+// Slots for one local date. Query a UTC window around it, keep what falls on that date locally (no offset math).
+export async function slots(svc, date) {
+  const from = new Date(`${date}T00:00:00Z`).getTime() - 864e5;
+  const to = from + 3 * 864e5;
+  let starts;
+  if (MOCK) {
+    starts = [];
+    for (let t = from; t < to; t += 30 * 6e4) {
+      const l = local(t), end = local(t + svc.minutes * 6e4), h = config.hours[l.day];
+      if (h && l.hm >= h[0] && end.hm <= h[1] && end.date === l.date && t > Date.now() && !mockBooked.has(t)) starts.push(new Date(t).toISOString());
+    }
+  } else {
+    const data = await cal(`/slots?${new URLSearchParams({
+      username: config.booking.username, eventSlug: svc.calEventSlug,
+      startTime: new Date(from).toISOString(), endTime: new Date(to).toISOString(),
+    })}`);
+    // Cal.com has returned both {slots:{date:[{time}]}} and {date:[{start}]} across versions
+    starts = Object.values(data.slots ?? data).flat().map((s) => s.time ?? s.start);
+  }
+  return starts.filter((s) => local(new Date(s)).date === date).map((start) => ({ start, label: label(start) }));
+}
+
+export async function book(svc, start, attendee) {
+  if (MOCK) {
+    const t = Date.parse(start);
+    if (mockBooked.has(t)) throw Object.assign(new Error('That time was just taken.'), { status: 409 });
+    mockBooked.add(t);
+    return { uid: `mock-${t.toString(36)}`, start, mock: true };
+  }
+  const b = await cal('/bookings', {
+    method: 'POST',
+    body: JSON.stringify({
+      username: config.booking.username, eventTypeSlug: svc.calEventSlug, start,
+      attendee: { ...attendee, timeZone: config.timezone },
+    }),
+  });
+  return { uid: b.uid, start: b.start ?? start };
+}

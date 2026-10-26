@@ -1,0 +1,13 @@
+{
+  "name": "agentready",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Drop-in script that makes small-business websites usable by AI agents via WebMCP.",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env dev.mjs",
+    "test": "node --test"
+  }
+}

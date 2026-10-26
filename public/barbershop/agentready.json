@@ -1,0 +1,36 @@
+{
+  "name": "Fade Street Barbers",
+  "type": "HairSalon",
+  "description": "Walk-in friendly barbershop on James North. Fades, tapers, beard work and hot towel shaves.",
+  "timezone": "America/Toronto",
+  "phone": "+1-905-555-0142",
+  "address": {
+    "street": "214 James St N",
+    "city": "Hamilton",
+    "region": "ON",
+    "postal": "L8R 2L3",
+    "country": "CA"
+  },
+  "hours": {
+    "mon": null,
+    "tue": ["10:00", "19:00"],
+    "wed": ["10:00", "19:00"],
+    "thu": ["10:00", "20:00"],
+    "fri": ["10:00", "20:00"],
+    "sat": ["09:00", "17:00"],
+    "sun": ["11:00", "16:00"]
+  },
+  "services": [
+    { "id": "skin-fade", "name": "Skin Fade", "minutes": 45, "price": 40, "currency": "CAD", "calEventSlug": "skin-fade" },
+    { "id": "classic-cut", "name": "Classic Cut", "minutes": 30, "price": 32, "currency": "CAD", "calEventSlug": "classic-cut" },
+    { "id": "beard-trim", "name": "Beard Trim & Line-up", "minutes": 20, "price": 20, "currency": "CAD", "calEventSlug": "beard-trim" },
+    { "id": "cut-and-beard", "name": "Cut + Beard", "minutes": 60, "price": 55, "currency": "CAD", "calEventSlug": "cut-and-beard" },
+    { "id": "hot-towel-shave", "name": "Hot Towel Shave", "minutes": 40, "price": 38, "currency": "CAD", "calEventSlug": "hot-towel-shave" },
+    { "id": "kids-cut", "name": "Kids Cut (12 & under)", "minutes": 25, "price": 24, "currency": "CAD", "calEventSlug": "kids-cut" }
+  ],
+  "booking": {
+    "provider": "calcom",
+    "username": "",
+    "url": "#book"
+  }
+}
