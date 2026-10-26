@@ -5,9 +5,15 @@
   "type": "module",
   "description": "Drop-in script that makes small-business websites usable by AI agents via WebMCP.",
   "license": "MIT",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "node --env-file-if-exists=.env dev.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "agent": "node --env-file-if-exists=.env agent/run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
   }
 }
