@@ -30,7 +30,7 @@
   ],
   "booking": {
     "provider": "calcom",
-    "username": "",
-    "url": "#book"
+    "username": "david-cilliers",
+    "url": "https://cal.com/david-cilliers"
   }
 }

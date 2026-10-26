@@ -3,7 +3,8 @@
 import config from '../public/barbershop/agentready.json' with { type: 'json' };
 
 export { config };
-export const MOCK = !config.booking.username; // no Cal.com account yet → fake slots + bookings, flagged mock:true
+// Fake slots + bookings (flagged mock:true) with no Cal.com username, or AGENTREADY_MOCK=1 (tests: never book for real)
+export const MOCK = process.env.AGENTREADY_MOCK === '1' || !config.booking.username;
 const CAL = 'https://api.cal.com/v2';
 
 export const json = (body, status = 200) => Response.json(body, { status });

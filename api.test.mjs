@@ -1,4 +1,4 @@
-// Runs against mock mode (booking.username empty in agentready.json).
+// Runs in mock mode (npm test sets AGENTREADY_MOCK=1), so it never books in the real calendar.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GET } from './api/slots.js';
