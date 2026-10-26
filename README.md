@@ -35,6 +35,14 @@ To see the tools as an agent does, start Chrome with `--enable-features=WebMCPTe
 npm test
 ```
 
+### Verification gauntlet
+
+```bash
+npm run gauntlet
+```
+
+A Muse Spark agent runs 7 customer tasks (hours, prices, live availability, booking, declined booking, booking on a closed day) against the site, and every answer is checked mechanically against the owner's config and the live booking system. Then it runs the same tasks against a **broken twin** (stale prices and hours, booking backend down, consent dialog auto-approving). The site is only "verified" if it passes and the twin is caught on every fault. Runs in mock mode, so nothing is really booked. Report goes to `reports/`.
+
 ## Layout
 
 - `public/agentready.js` — the drop-in script (no build step)

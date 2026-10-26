@@ -5,9 +5,12 @@ import { chromium } from 'playwright';
 import { createInterface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
 
-const BASE_URL = process.env.AGENT_BASE_URL || 'https://api.meta.ai/v1';
-const MODEL = process.env.AGENT_MODEL || 'muse-spark-1.3';
-const API_KEY = process.env.AGENT_API_KEY || process.env.MODEL_API_KEY;
+// Which model drives the agent. The gauntlet passes its own per skeptic.
+export const DEFAULT_LLM = {
+  baseUrl: process.env.AGENT_BASE_URL || 'https://api.meta.ai/v1',
+  model: process.env.AGENT_MODEL || 'muse-spark-1.3',
+  apiKey: process.env.AGENT_API_KEY || process.env.MODEL_API_KEY,
+};
 
 // Tools register after agentready.js loads its config; wait until some exist.
 // NOTE: page.waitForFunction can't do this — it never awaits async predicates
@@ -27,10 +30,11 @@ export async function openSite(url, { headless = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 1100, height: 800 } });
   await page.goto(url);
   await waitForTools(page);
-  const tools = await page.evaluate(async () =>
-    (await document.modelContext.getTools()).map(({ name, description, inputSchema }) => ({ name, description, inputSchema })));
-  return { browser, page, tools };
+  return { browser, page, tools: await listTools(page) };
 }
+
+export const listTools = (page) => page.evaluate(async () =>
+  (await document.modelContext.getTools()).map(({ name, description, inputSchema }) => ({ name, description, inputSchema })));
 
 // Chrome 155 takes (RegisteredTool, inputObject) and resolves to a JSON string.
 const callTool = (page, name, args) => page.evaluate(async ({ name, args }) => {
@@ -39,16 +43,16 @@ const callTool = (page, name, args) => page.evaluate(async ({ name, args }) => {
   try { return await document.modelContext.executeTool(tool, args); } catch (e) { return JSON.stringify({ error: e.message }); }
 }, { name, args });
 
-async function complete(messages, tools) {
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
+async function complete(messages, tools, { baseUrl, model, apiKey }) {
+  const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: MODEL, messages,
+      model, messages,
       tools: tools.map(({ name, description, inputSchema }) => ({ type: 'function', function: { name, description, parameters: inputSchema } })),
     }),
   });
-  if (!res.ok) throw new Error(`${MODEL} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`${model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return (await res.json()).choices[0].message;
 }
 
@@ -60,9 +64,9 @@ book_appointment asks the user to confirm on the page. Only say an appointment i
 }
 
 // One user turn: loop model ↔ tools until the model answers in text. `log` sees every step.
-export async function turn({ page, tools, messages, log = () => {} }) {
+export async function turn({ page, tools, messages, log = () => {}, llm = DEFAULT_LLM }) {
   for (let i = 0; i < 12; i++) {
-    const msg = await complete(messages, tools);
+    const msg = await complete(messages, tools, llm);
     messages.push(msg);
     if (!msg.tool_calls?.length) return msg.content;
     for (const call of msg.tool_calls) {
@@ -78,10 +82,10 @@ export async function turn({ page, tools, messages, log = () => {} }) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (!API_KEY) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
+  if (!DEFAULT_LLM.apiKey) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
   const url = process.argv[2] || 'http://localhost:3100/barbershop/';
   const { browser, page, tools } = await openSite(url);
-  console.log(`${MODEL} on ${url}\ntools: ${tools.map((t) => t.name).join(', ')}\n`);
+  console.log(`${DEFAULT_LLM.model} on ${url}\ntools: ${tools.map((t) => t.name).join(', ')}\n`);
   const messages = [{ role: 'system', content: systemPrompt(url) }];
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const log = (e) => console.log(e.type === 'call'
