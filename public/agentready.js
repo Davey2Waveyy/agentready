@@ -137,7 +137,7 @@
           if (answer !== 'yes') return { booked: false, reason: answer === 'timeout' ? 'no_response' : 'declined_by_customer', next_action: 'Tell the customer nothing was booked. Do not retry unless they ask.' };
           try {
             const b = await post('/book', { service_id, start, name, email });
-            return { booked: true, ...b, next_action: 'Tell the customer it is booked and a confirmation email is on its way.' };
+            return { booked: true, ...b, next_action: b.mock ? 'Tell the customer it is booked (test mode: no email is sent).' : 'Tell the customer it is booked and a confirmation email is on its way.' };
           } catch (e) {
             return { booked: false, error: e.message, next_action: e.data?.next_action || 'Apologize and offer another time.' };
           }
