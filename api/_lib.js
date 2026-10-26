@@ -19,12 +19,13 @@ export function local(when, timeZone = config.timezone) {
 
 const label = (iso) => new Date(iso).toLocaleTimeString('en-CA', { timeZone: config.timezone, hour: 'numeric', minute: '2-digit' });
 
-async function cal(path, init = {}) {
+// Cal.com versions each endpoint separately: slots 404s on 2024-08-13, bookings uses it.
+async function cal(path, init = {}, version = '2024-08-13') {
   const res = await fetch(CAL + path, {
     ...init,
     headers: {
       'content-type': 'application/json',
-      'cal-api-version': '2024-08-13',
+      'cal-api-version': version,
       ...(process.env.CAL_API_KEY && { authorization: `Bearer ${process.env.CAL_API_KEY}` }),
     },
   });
@@ -48,11 +49,10 @@ export async function slots(svc, date) {
     }
   } else {
     const data = await cal(`/slots?${new URLSearchParams({
-      username: config.booking.username, eventSlug: svc.calEventSlug,
-      startTime: new Date(from).toISOString(), endTime: new Date(to).toISOString(),
-    })}`);
-    // Cal.com has returned both {slots:{date:[{time}]}} and {date:[{start}]} across versions
-    starts = Object.values(data.slots ?? data).flat().map((s) => s.time ?? s.start);
+      username: config.booking.username, eventTypeSlug: svc.calEventSlug,
+      start: new Date(from).toISOString(), end: new Date(to).toISOString(),
+    })}`, {}, '2024-09-04');
+    starts = Object.values(data).flat().map((s) => s.start); // { "YYYY-MM-DD": [{ start }] }
   }
   return starts.filter((s) => local(new Date(s)).date === date).map((start) => ({ start, label: label(start) }));
 }
