@@ -1,5 +1,5 @@
 // AgentReady demo agent: Muse Spark drives a real Chrome tab through the site's WebMCP tools.
-// npm run agent -- http://localhost:3000/barbershop/
+// npm run agent -- http://localhost:3100/barbershop/
 // The browser is visible on purpose: bookings need a human click on the page's confirm dialog.
 import { chromium } from 'playwright';
 import { createInterface } from 'node:readline/promises';
@@ -9,12 +9,24 @@ const BASE_URL = process.env.AGENT_BASE_URL || 'https://api.meta.ai/v1';
 const MODEL = process.env.AGENT_MODEL || 'muse-spark-1.3';
 const API_KEY = process.env.AGENT_API_KEY || process.env.MODEL_API_KEY;
 
+// Tools register after agentready.js loads its config; wait until some exist.
+// NOTE: page.waitForFunction can't do this — it never awaits async predicates
+// (a Promise is truthy, so it returns on the first poll). Poll via evaluate.
+export async function waitForTools(page, timeoutMs = 15_000) {
+  const t0 = Date.now();
+  for (;;) {
+    const n = await page.evaluate(async () => (await document.modelContext?.getTools())?.length || 0).catch(() => 0);
+    if (n > 0) return;
+    if (Date.now() - t0 > timeoutMs) throw new Error('timed out waiting for WebMCP tools');
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
+
 export async function openSite(url, { headless = false } = {}) {
   const browser = await chromium.launch({ channel: 'chrome', headless, args: ['--enable-features=WebMCPTesting'] });
   const page = await browser.newPage({ viewport: { width: 1100, height: 800 } });
   await page.goto(url);
-  // Tools register after agentready.js loads its config; wait until some exist.
-  await page.waitForFunction(async () => (await document.modelContext?.getTools())?.length > 0, null, { timeout: 15_000 });
+  await waitForTools(page);
   const tools = await page.evaluate(async () =>
     (await document.modelContext.getTools()).map(({ name, description, inputSchema }) => ({ name, description, inputSchema })));
   return { browser, page, tools };
@@ -67,7 +79,7 @@ export async function turn({ page, tools, messages, log = () => {} }) {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!API_KEY) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
-  const url = process.argv[2] || 'http://localhost:3000/barbershop/';
+  const url = process.argv[2] || 'http://localhost:3100/barbershop/';
   const { browser, page, tools } = await openSite(url);
   console.log(`${MODEL} on ${url}\ntools: ${tools.map((t) => t.name).join(', ')}\n`);
   const messages = [{ role: 'system', content: systemPrompt(url) }];

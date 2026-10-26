@@ -27,7 +27,7 @@ See [`public/barbershop/agentready.json`](public/barbershop/agentready.json) for
 npm run dev
 ```
 
-Open http://localhost:3000/barbershop/. With `booking.username` empty in the config, the API runs in mock mode (fake slots, fake bookings, responses flagged `mock: true`). Set it to a Cal.com username, and optionally `CAL_API_KEY` in `.env`, for real bookings.
+Open http://localhost:3100/barbershop/. With `booking.username` empty in the config, the API runs in mock mode (fake slots, fake bookings, responses flagged `mock: true`). Set it to a Cal.com username, and optionally `CAL_API_KEY` in `.env`, for real bookings.
 
 To see the tools as an agent does, start Chrome with `--enable-features=WebMCPTesting` (or `chrome://flags/#enable-webmcp-testing`) and run `await document.modelContext.getTools()` in the console.
 
