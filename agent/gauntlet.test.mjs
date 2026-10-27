@@ -1,7 +1,7 @@
 // The gauntlet's verdict is only as good as these text checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { timesIn, claimsBooked, saysClosed, saysPrice, tasks } from './gauntlet.mjs';
+import { timesIn, claimsBooked, saysClosed, saysPrice, NO_TIMES, tasks } from './gauntlet.mjs';
 import truth from '../public/barbershop/agentready.json' with { type: 'json' };
 
 test('timesIn reads the ways agents write times', () => {
@@ -39,4 +39,10 @@ test('saysPrice wants a price, not any number', () => {
   assert.ok(saysPrice('It costs 38.00 CAD', 38));
   assert.ok(!saysPrice('$53, takes 38 minutes', 38));
   assert.ok(!saysPrice('$380', 38));
+});
+
+test('NO_TIMES: telling the customer there is nothing that day', () => {
+  assert.ok(NO_TIMES.test('No Spa Pedicure times available Monday, Nov 2.'));
+  assert.ok(NO_TIMES.test('2pm is not available.'));
+  assert.ok(!NO_TIMES.test('Booked for 2pm Monday.'));
 });

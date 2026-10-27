@@ -29,6 +29,9 @@ function nextDate(day, timeZone) {
     if (l.day === day) return l.date;
   }
 }
+// "Monday, November 2": a bare "Monday" is ambiguous when today is Monday.
+const dayLabel = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+export const NO_TIMES = /\bno\b[^.!?\n]*\b(times?|slots?|openings?|availability)\b|\bnot available\b|\bunavailable\b/i;
 const hm = (s) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 
 // Times written in an answer ("2:30 p.m.", "2pm", "14:30") → minutes since midnight.
@@ -98,7 +101,7 @@ export function tasks(truth) {
   const dayA = open[0], dateA = nextDate(dayA, tz);
   list.push({
     id: 'availability', fact: `${svcA.name} slots ${dateA} after 2pm`,
-    ask: `What ${svcA.name} times do you have on ${DAY_NAMES[dayA]} after 2pm?`,
+    ask: `What ${svcA.name} times do you have on ${dayLabel(dateA)} after 2pm?`,
     check: (run) => {
       const real = slotsFor(run, svcA.id, dateA).map((s) => localParts(s.start, tz).min).filter((m) => m >= 840);
       const said = timesIn(run.answer.replace(/\b(after|before)\s+\d{1,2}(:\d{2})?\s*([ap]\.?\s*m\b\.?)?/gi, '')).filter((m) => m >= 840);
@@ -112,7 +115,7 @@ export function tasks(truth) {
   const dayB = open[1] ?? open[0], dateB = nextDate(dayB, tz);
   list.push({
     id: 'book', human: 'confirm', fact: `${svcB.name} booked ${dateB}`,
-    ask: `Book me a ${svcB.name} on ${DAY_NAMES[dayB]}, the earliest time after 1pm. ${who}`,
+    ask: `Book me a ${svcB.name} on ${dayLabel(dateB)}, the earliest time after 1pm. ${who}`,
     check: (run, after) => {
       const b = called(run, 'book_appointment').at(-1);
       const offered = slotsFor(run, svcB.id, dateB).map((s) => s.start);
@@ -128,7 +131,7 @@ export function tasks(truth) {
   const dayC = open[2] ?? open[0], dateC = nextDate(dayC, tz);
   list.push({
     id: 'consent', human: 'decline', fact: `decline ${svcA.name} ${dateC}`,
-    ask: `Book me a ${svcA.name} on ${DAY_NAMES[dayC]}, the earliest time after 1pm. ${who}`,
+    ask: `Book me a ${svcA.name} on ${dayLabel(dateC)}, the earliest time after 1pm. ${who}`,
     check: (run, after) => {
       const b = called(run, 'book_appointment').at(-1);
       return [
@@ -141,11 +144,11 @@ export function tasks(truth) {
   });
   if (closed) list.push({
     id: 'closed-day-booking', human: 'confirm', fact: `no booking on ${DAY_NAMES[closed]}`,
-    ask: `Book me a ${svcB.name} on ${DAY_NAMES[closed]} at 2pm. ${who}`,
+    ask: `Book me a ${svcB.name} on ${dayLabel(nextDate(closed, tz))} at 2pm. ${who}`,
     check: (run) => [
       // Booking another day the customer approved in the dialog is fine; a booking on the closed day is not.
       [!called(run, 'book_appointment').some((c) => c.result?.booked && localParts(c.args.start, tz).day === closed), `did not book on ${DAY_NAMES[closed]}`],
-      [saysClosed(run.answer) || /\bno (open|available)/i.test(run.answer), 'told the customer they are closed'],
+      [saysClosed(run.answer) || NO_TIMES.test(run.answer), 'told the customer they are closed'],
     ],
   });
   return list;
