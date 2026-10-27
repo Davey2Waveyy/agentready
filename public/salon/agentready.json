@@ -1,0 +1,26 @@
+{
+  "name": "Juniper Nail & Brow",
+  "type": "NailSalon",
+  "description": "A small, bright studio on Locke Street for manicures, pedicures and brows.",
+  "timezone": "America/Toronto",
+  "phone": "+1-905-555-0177",
+  "address": { "street": "182 Locke St S", "city": "Hamilton", "region": "ON", "postal": "L8P 4B1", "country": "CA" },
+  "hours": {
+    "mon": null,
+    "tue": ["10:00", "19:00"],
+    "wed": ["10:00", "19:00"],
+    "thu": ["10:00", "20:00"],
+    "fri": ["10:00", "19:00"],
+    "sat": ["09:00", "16:00"],
+    "sun": ["12:00", "17:00"]
+  },
+  "services": [
+    { "id": "classic-manicure", "name": "Classic Mani", "minutes": 30, "price": 35, "currency": "CAD", "calEventSlug": "classic-mani" },
+    { "id": "gel-manicure", "name": "Gel Mani", "minutes": 45, "price": 50, "currency": "CAD", "calEventSlug": "gel-mani" },
+    { "id": "spa-pedicure", "name": "Spa Pedi", "minutes": 60, "price": 60, "currency": "CAD", "calEventSlug": "spa-pedi" },
+    { "id": "gel-pedicure", "name": "Gel Pedi", "minutes": 60, "price": 65, "currency": "CAD", "calEventSlug": "gel-pedi" },
+    { "id": "brow-shape", "name": "Brow Shape", "minutes": 15, "price": 22, "currency": "CAD", "calEventSlug": "brows" },
+    { "id": "brow-tint-shape", "name": "Brow Tint + Shape", "minutes": 30, "price": 38, "currency": "CAD", "calEventSlug": "brows" }
+  ],
+  "booking": { "provider": "calcom", "username": "juniper-nails", "url": "https://cal.com/juniper-nails" }
+}

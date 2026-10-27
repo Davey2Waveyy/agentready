@@ -1,6 +1,7 @@
 // Verification gauntlet: can an AI agent actually get things right on this site?
 // Veritas shape: hunt (customer tasks) → null test (broken twin must fail) → mechanical checks → report.
 // npm run gauntlet            (starts its own mock-mode server, so nothing is ever really booked)
+// npm run gauntlet -- salon   (another demo site; the salon hasn't installed AgentReady, so the test browser adds it)
 // npm run gauntlet -- <url>   (a site already running with AGENTREADY_MOCK=1)
 // npm run gauntlet -- --config reports/draft-….json   (verify a generated draft before it goes live)
 import { chromium } from 'playwright';
@@ -157,6 +158,17 @@ async function breakTwin(page, configUrl) {
   });
 }
 
+// Verify before going live: a site that hasn't installed AgentReady gets the script tag added in the test browser only.
+function installAgentReady() {
+  document.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('script[src$="agentready.js"]')) return;
+    const s = document.createElement('script');
+    Object.assign(s.dataset, { config: 'agentready.json', api: '/api' });
+    s.src = '/agentready.js';
+    document.head.append(s);
+  });
+}
+
 // Plays the customer: watches for AgentReady's confirm dialog and clicks Confirm or Cancel.
 function actAsHuman(page, mode, dialogs) {
   (async () => {
@@ -173,6 +185,7 @@ function actAsHuman(page, mode, dialogs) {
 async function runTask(browser, url, task, { twin, configUrl, llm }) {
   const page = await browser.newPage();
   if (twin) await breakTwin(page, configUrl);
+  await page.addInitScript(installAgentReady);
   await page.goto(url);
   await waitForTools(page);
   const run = { calls: [], dialogs: [], answer: '' };
@@ -232,11 +245,11 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log } = {
 }
 
 // Own server in mock mode, so nothing is ever really booked. `config`: serve and verify that config instead of the demo's.
-export async function demoServer({ config, port = 3200 } = {}) {
+export async function demoServer({ config, site = 'barbershop', port = 3200 } = {}) {
   const env = { ...process.env, PORT: String(port), AGENTREADY_MOCK: '1' };
   if (config) env.AGENTREADY_CONFIG = config;
   const proc = spawn(process.execPath, ['dev.mjs'], { env, stdio: 'ignore' });
-  const url = `http://localhost:${port}/barbershop/`;
+  const url = `http://localhost:${port}/${site}/`;
   for (let i = 0; i < 50 && !(await fetch(url).then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 100));
   return { url, kill: () => proc.kill() };
 }
@@ -253,8 +266,10 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     await mkdir('reports', { recursive: true });
     await writeFile(config, JSON.stringify(j.config ?? j));
   }
-  const server = args[0] ? null : await demoServer({ config });
-  const url = args[0] || server.url;
+  // A demo site by name (default: the site the draft was generated from, else barbershop), or a URL already running.
+  const arg = args[0] || (draft && JSON.parse(await readFile(draft, 'utf8')).url?.match(/localhost:\d+\/([^/]+)\//)?.[1]) || 'barbershop';
+  const server = /^https?:/.test(arg) ? null : await demoServer({ config, site: arg });
+  const url = server?.url || arg;
   try {
     console.log(`gauntlet: ${DEFAULT_LLM.model} on ${url}${draft ? ` with ${draft}` : ''}\n`);
     const report = await gauntlet(url);

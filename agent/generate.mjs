@@ -1,6 +1,7 @@
 // Generate: Muse Spark reads a business website (page text + screenshots) and drafts its agentready.json.
 // The draft is not live until the owner reviews it; `questions` lists what the site didn't say.
 // npm run generate                 (the demo barbershop, scored against its hand-written config)
+// npm run generate -- salon        (the messy demo salon: prices only in a photo of its menu board)
 // npm run generate -- <url>        (any site)
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -124,12 +125,17 @@ export function compare(got, want) {
   check('phone', got.phone, want.phone, digits(got.phone) === digits(want.phone));
   for (const k of ['street', 'city', 'region', 'postal']) check(`address.${k}`, got.address?.[k], want.address[k]);
   for (const d of DAYS) check(`hours.${d}`, JSON.stringify(got.hours?.[d]), JSON.stringify(want.hours[d]));
+  // Names are free text ("Classic mani" vs "Classic Manicure"): same name, one inside the other, or same minutes + price.
+  const same = (g, w) => norm(g.name) === norm(w.name);
+  const near = (g, w) => norm(g.name).includes(norm(w.name)) || norm(w.name).includes(norm(g.name)) || (g.minutes === w.minutes && g.price === w.price);
+  const left = [...(got.services || [])];
   for (const w of want.services) {
-    const g = got.services?.find((s) => norm(s.name) === norm(w.name));
+    const i = left.findIndex((g) => same(g, w)) >= 0 ? left.findIndex((g) => same(g, w)) : left.findIndex((g) => near(g, w));
+    const g = i >= 0 ? left.splice(i, 1)[0] : null;
     check(`service ${w.name}`, g?.name, w.name, !!g);
     if (g) for (const k of ['minutes', 'price', 'currency']) check(`service ${w.name}.${k}`, g[k], w[k], g[k] === w[k]);
   }
-  for (const g of got.services || []) if (!want.services.some((w) => norm(w.name) === norm(g.name))) check(`extra service ${g.name}`, g.name, null, false);
+  for (const g of left) check(`extra service ${g.name}`, g.name, null, false);
   return out;
 }
 
@@ -151,18 +157,20 @@ export async function generate(url, { llm = DEFAULT_LLM, log = console.log } = {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!DEFAULT_LLM.apiKey) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
-  const server = process.argv[2] ? null : await demoServer();
-  const url = process.argv[2] || server.url;
+  const arg = process.argv[2] || 'barbershop';
+  const server = /^https?:/.test(arg) ? null : await demoServer({ site: arg });
+  const url = server?.url || arg;
   try {
     console.log(`generate: ${DEFAULT_LLM.model} reading ${url}\n`);
     const draft = await generate(url);
-    if (server) { // the demo site has a hand-written config to score against
+    if (server) { // demo sites have a hand-written config to score against
       const truth = await (await fetch(new URL('agentready.json', url))).json();
       draft.score = compare(draft.config, truth);
       for (const c of draft.score.filter((c) => !c.ok)) console.log(`  ✗ ${c.field}: got ${JSON.stringify(c.got)}, want ${JSON.stringify(c.want)}`);
       console.log(`matches hand-written config: ${draft.score.filter((c) => c.ok).length}/${draft.score.length} fields`);
     }
-    console.log(`\nservices: ${draft.config.services.map((s) => `${s.name} ${s.minutes ?? '?'}min ${s.price ?? '?'}`).join(' · ')}`);
+    console.log(`\nservices: ${draft.config.services.map((s) => `${s.name} ${s.minutes ?? '?'}min ${s.price ?? '?'}${s.calEventSlug ? ` [${s.calEventSlug}]` : ''}`).join(' · ')}`);
+    console.log(`booking: ${JSON.stringify(draft.config.booking)}`);
     console.log(`format errors: ${draft.errors.length ? draft.errors.join('; ') : 'none'}`);
     console.log(`owner to fill in: ${draft.missing.join(', ') || 'nothing'}`);
     for (const q of draft.questions || []) console.log(`  ? ${q}`);
