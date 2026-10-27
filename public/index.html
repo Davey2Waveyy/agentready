@@ -90,6 +90,8 @@
     .cell.no { background: var(--bad-bg); color: var(--bad); cursor: pointer; }
     .twin .cell.no { background: var(--go-bg); color: var(--go); } /* a twin that fails = the test caught the fault */
     .twin .cell.ok { background: var(--bad-bg); color: var(--bad); }
+    .twin .cell.na, .twin .cell.na.ok, .twin .cell.na.no { background: var(--soft); color: var(--muted); font-weight: 400; } /* not aimed at any fault */
+    .row small { display: block; color: var(--muted); font-size: 11px; }
     @media (prefers-reduced-motion: reduce) { .cell.run { animation: none; } }
     .detail { margin-top: 16px; font-size: 14px; }
     .detail[hidden] { display: none; }
@@ -281,11 +283,12 @@
 
     // ---- verify: live matrix, one cell per (task, model) ----
     const results = {};
-    function renderMatrix(models, tasks) {
+    function renderMatrix(models, tasks, faults) {
+      const fault = Object.fromEntries(faults.flatMap((f) => f.caughtBy.map((id) => [id, f.what])));
       const head = `<div class="row head" style="--n:${models.length}"><span>task</span>${models.map((m) => `<span title="${esc(m)}">${esc(m.replace('muse-', ''))}</span>`).join('')}</div>`;
       for (const side of ['site', 'twin']) {
-        $(`#m-${side}`).innerHTML = head + tasks.map((t) => `<div class="row" style="--n:${models.length}"><span title="${esc(t.ask)}">${esc(t.id.replace(/-/g, ' '))}</span>${models.map((m) =>
-          `<button class="cell" id="c-${side}-${t.id}-${m.replace(/\W/g, '')}" data-key="${side}|${t.id}|${m}" disabled aria-label="${side} ${t.id} ${m}"></button>`).join('')}</div>`).join('');
+        $(`#m-${side}`).innerHTML = head + tasks.map((t) => `<div class="row" style="--n:${models.length}"><span title="${esc(t.ask)}">${esc(t.id.replace(/-/g, ' '))}${side === 'twin' && fault[t.id] ? `<small>catches: ${esc(fault[t.id])}</small>` : ''}</span>${models.map((m) =>
+          `<button class="cell${side === 'twin' && !fault[t.id] ? ' na' : ''}" id="c-${side}-${t.id}-${m.replace(/\W/g, '')}" data-key="${side}|${t.id}|${m}" disabled aria-label="${side} ${t.id} ${m}"></button>`).join('')}</div>`).join('');
       }
     }
     $('#s-verify').addEventListener('click', (e) => {
@@ -307,13 +310,13 @@
       let asks = {};
       try {
         await stream('/api/verify', { url: draft.url, config: draft.config }, (ev) => {
-          if (ev.type === 'start') { asks = Object.fromEntries(ev.tasks.map((t) => [t.id, t.ask])); renderMatrix(ev.models, ev.tasks); }
+          if (ev.type === 'start') { asks = Object.fromEntries(ev.tasks.map((t) => [t.id, t.ask])); renderMatrix(ev.models, ev.tasks, ev.faults); }
           if (ev.type === 'running') $(`#c-${ev.side}-${ev.id}-${ev.model.replace(/\W/g, '')}`)?.classList.add('run');
           if (ev.type === 'result') {
             const key = `${ev.side}|${ev.id}|${ev.model}`;
             results[key] = { ...ev, ask: asks[ev.id] };
             const cell = $(`#c-${ev.side}-${ev.id}-${ev.model.replace(/\W/g, '')}`);
-            cell.classList.remove('run'); cell.classList.add(ev.pass ? 'ok' : 'no'); cell.textContent = ev.pass ? '✓' : '✗'; cell.disabled = false;
+            cell.classList.remove('run'); cell.classList.add(ev.pass ? 'ok' : 'no'); cell.textContent = cell.classList.contains('na') ? '–' : ev.pass ? '✓' : '✗'; cell.disabled = false;
           }
           if (ev.type === 'verdict') renderVerdict(ev.verdict, ev.site);
           if (ev.type === 'error') alert(ev.message);

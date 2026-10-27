@@ -27,7 +27,11 @@ See [`public/barbershop/agentready.json`](public/barbershop/agentready.json) for
 npm run dev
 ```
 
-Open http://localhost:3100/barbershop/. With `booking.username` empty in the config, the API runs in mock mode (fake slots, fake bookings, responses flagged `mock: true`). Set it to a Cal.com username, and optionally `CAL_API_KEY` in `.env`, for real bookings.
+Open http://localhost:3100/ for the app: paste a URL (or pick a demo), watch Muse read it, review the draft, and watch three Meta models verify it live. The demo businesses are at http://localhost:3100/barbershop/ and http://localhost:3100/salon/.
+
+Generate and verify drive a real Chrome (Playwright, `--enable-features=WebMCPTesting`), so the app runs as one long-lived Node server, not serverless functions.
+
+Barbershop details: with `booking.username` empty in the config, the API runs in mock mode (fake slots, fake bookings, responses flagged `mock: true`). Set it to a Cal.com username, and optionally `CAL_API_KEY` in `.env`, for real bookings.
 
 To see the tools as an agent does, start Chrome with `--enable-features=WebMCPTesting` (or `chrome://flags/#enable-webmcp-testing`) and run `await document.modelContext.getTools()` in the console.
 

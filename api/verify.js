@@ -1,6 +1,6 @@
 // POST {url, config} → NDJSON stream of gauntlet results (3 skeptics × site + broken twin), then the verdict.
 // The draft is served only inside the test browser and always in mock mode: verifying never books for real.
-import { gauntlet, SKEPTICS } from '../agent/gauntlet.mjs';
+import { gauntlet, SKEPTICS, FAULTS } from '../agent/gauntlet.mjs';
 import { validate } from '../agent/generate.mjs';
 import { DEFAULT_LLM } from '../agent/run.mjs';
 import { ndjson, addDraft } from './_lib.js';
@@ -17,7 +17,7 @@ export async function POST(request) {
     for (const model of SKEPTICS) {
       runs.push(await gauntlet(url, {
         config, site, llm: { ...DEFAULT_LLM, model },
-        onTasks: (tasks) => started || (started = true, send({ type: 'start', models: SKEPTICS, tasks: tasks.map(({ id, ask }) => ({ id, ask })) })),
+        onTasks: (tasks) => started || (started = true, send({ type: 'start', models: SKEPTICS, tasks: tasks.map(({ id, ask }) => ({ id, ask })), faults: FAULTS })),
         onRunning: (side, id) => send({ type: 'running', model, side, id }),
         onResult: (side, r) => send({ type: 'result', model, side, ...r }),
       }));
