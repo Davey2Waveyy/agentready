@@ -17,6 +17,7 @@ test('format errors block, unknown values go to the owner', () => {
   delete c.hours.wed;
   c.services[1].id = c.services[0].id;
   c.services[2].price = null;
+  c.services[2].currency = null; // no price, so no currency needed
   c.services[3].minutes = null;
   const { errors, missing } = validate(c);
   assert.equal(errors.length, 4, errors.join('\n'));

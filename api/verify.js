@@ -11,6 +11,7 @@ export async function POST(request) {
   if (!target) return json({ error: 'Enter a public http(s) URL.' }, 400);
   const { errors } = validate(config ?? {});
   if (errors.length) return json({ error: `Fix these first: ${errors.join('; ')}` }, 400);
+  if (!config.services.some((s) => s.minutes && s.price != null)) return json({ error: 'Add a duration and price to at least one service first.' }, 400);
   if (runningJobs() >= 3) return json({ error: 'Busy verifying other sites. Try again in a few minutes.' }, 429);
   const site = addSite(config);
   return json({ job: startJob(async (send) => {

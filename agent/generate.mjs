@@ -10,34 +10,46 @@ import { DEFAULT_LLM } from './run.mjs';
 import { demoServer } from './gauntlet.mjs';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-const BOOKING = /cal\.com|calendly\.com|fresha\.com|booksy\.com|squareup\.com\/appointments|vagaro\.com|setmore\.com|acuityscheduling\.com|opentable\.com|resy\.com/i;
-const USEFUL = /servic|price|menu|rate|hour|book|appoint|contact|visit|about|location/i;
+const SOCIAL = /instagram|facebook|tiktok|twitter|x\.com|youtube|pinterest|linkedin|google\.|wix\.com|squarespace\.com|shopify\.com|^mailto:|^tel:/i;
+const USEFUL = /servic|price|menu|rate|hour|book|reserv|appoint|contact|visit|about|location/i;
 
-// Up to maxPages same-origin pages, most useful links first. Text, JSON-LD, booking links and a screenshot of each.
-export async function crawl(url, { maxPages = 4 } = {}) {
+// Up to maxPages pages: the site's most useful pages plus its booking page. Text, JSON-LD, booking links and a screenshot of each.
+export async function crawl(url, { maxPages = 5 } = {}) {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const page = await browser.newPage({ viewport: { width: 1100, height: 800 } });
-  await page.route(/agentready\.(js|json)/, (r) => r.abort()); // read the site as it is before AgentReady is installed
+  const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  await context.route(/agentready\.(js|json)/, (r) => r.abort()); // read the site as it is before AgentReady is installed
   const pages = [], seen = new Set(), queue = [url];
+  let booked = false;
   try {
     while (queue.length && pages.length < maxPages) {
       const u = queue.shift().split('#')[0];
       if (seen.has(u)) continue;
       seen.add(u);
-      if (!(await page.goto(u).catch(() => null))?.ok()) continue;
+      // a fresh tab per page: a blocked page (OpenTable refuses headless Chrome) leaves an error page that hijacks the next goto
+      const page = await context.newPage();
+      if (!(await page.goto(u).catch(() => null))?.ok()) { await page.close(); continue; }
+      // scroll through so lazy-loaded images (Wix, Squarespace) are in the screenshot
+      await page.evaluate(async () => { for (let y = 0; y < Math.min(document.body.scrollHeight, 6000); y += 600) { scrollTo(0, y); await new Promise((r) => setTimeout(r, 120)); } scrollTo(0, 0); });
       await page.waitForTimeout(500); // late JS widgets
       const d = await page.evaluate(() => ({
         title: document.title,
         text: document.body.innerText,
         jsonld: [...document.querySelectorAll('script[type="application/ld+json"]')].map((s) => s.textContent.trim()),
-        links: [...document.links].map((a) => ({ href: a.href, text: a.textContent.trim().slice(0, 60) })),
+        links: [...document.links].map((a) => ({ href: a.href, text: a.textContent.trim().replace(/\s+/g, ' ').slice(0, 60) }))
+          .concat([...document.querySelectorAll('iframe[src]')].map((f) => ({ href: f.src, text: '(embedded)' }))),
       }));
       // ponytail: screenshot capped at 6000px tall; tile it if long menus get cut off
       const height = Math.min(await page.evaluate(() => document.documentElement.scrollHeight), 6000);
       const shot = (await page.screenshot({ type: 'jpeg', quality: 55, fullPage: true, clip: { x: 0, y: 0, width: 1100, height } })).toString('base64');
-      pages.push({ url: u, title: d.title, text: d.text.slice(0, 12_000), jsonld: d.jsonld, booking: d.links.filter((l) => BOOKING.test(l.href)), shot });
+      await page.close();
       const origin = new URL(url).origin;
-      queue.push(...d.links.filter((l) => l.href.startsWith(origin) && USEFUL.test(l.href + ' ' + l.text)).map((l) => l.href));
+      // Booking platforms are endless (Squire, Phorest, Tock, Toast…), so Muse sees every outside link and decides.
+      const outside = [...new Map(d.links.filter((l) => /^https?:/.test(l.href) && !l.href.startsWith(origin) && !SOCIAL.test(l.href)).map((l) => [l.href.split('?')[0], l])).values()].slice(0, 30);
+      pages.push({ url: u, title: d.title, text: d.text.slice(0, 12_000), jsonld: d.jsonld, outside, shot });
+      queue.push(...d.links.filter((l) => l.href.startsWith(origin) && l.text !== '(embedded)' && USEFUL.test(l.href + ' ' + l.text)).map((l) => l.href));
+      // Real shops often list prices only on their booking page (Squire, Fresha, Phorest…): read one, but never crawl that site.
+      const bookAt = !booked && outside.find((l) => /book|appoint|reserv/i.test(l.text) && !/\.pdf$/i.test(l.href.split('?')[0]));
+      if (bookAt) { booked = true; queue.unshift(bookAt.href); }
     }
   } finally {
     await browser.close();
@@ -59,16 +71,17 @@ config shape:
   "address": {"street", "city", "region", "postal", "country" (ISO 3166 alpha-2)} or null,
   "hours": {"mon": ["HH:MM", "HH:MM"] 24-hour open and close, or null when closed, ... for all of mon tue wed thu fri sat sun},
   "services": [{"id": lowercase-kebab-case from the name, "name": as written, "minutes": integer duration or null, "price": number without symbol or null, "currency": ISO 4217}],
-  "booking": {"provider": "calcom" | "calendly" | other | null, "username": account name from the booking link or "", "url": booking page or null}
+  "booking": {"provider": lowercase platform name, e.g. "calcom", "calendly", "fresha", "square", "squire", "opentable", or null, "username": account name or slug from the booking link or "", "url": booking page or null}
 }
 Rules:
 - A value the site doesn't state is null, with a question for the owner. Hours that aren't listed are a question, not "closed".
 - "From $30" or "$30+" is price 30 with a question confirming it.
+- Booking buttons usually link to another site; find them in "Links to other sites".
 - If a cal.com link points at a specific service (cal.com/<username>/<slug>), add "calEventSlug": "<slug>" to that service.`;
 
 function pagesToContent(pages) {
   return pages.flatMap((p, i) => [
-    { type: 'text', text: `PAGE ${i + 1}: ${p.url}\nTitle: ${p.title}\n${p.jsonld.length ? `JSON-LD:\n${p.jsonld.join('\n')}\n` : ''}${p.booking.length ? `Booking links: ${p.booking.map((l) => `${l.text} → ${l.href}`).join('; ')}\n` : ''}Text:\n${p.text}` },
+    { type: 'text', text: `PAGE ${i + 1}: ${p.url}\nTitle: ${p.title}\n${p.jsonld.length ? `JSON-LD:\n${p.jsonld.join('\n')}\n` : ''}${p.outside.length ? `Links to other sites: ${p.outside.map((l) => `${l.text || '(image)'} → ${l.href}`).join('; ')}\n` : ''}Text:\n${p.text}` },
     { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${p.shot}` } },
   ]);
 }
@@ -102,7 +115,7 @@ export function validate(c) {
     req(/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.id) && !ids.has(s.id), `services[${i}].id: unique lowercase-kebab-case`);
     ids.add(s.id);
     req(typeof s.name === 'string' && s.name, `services[${i}].name: required`);
-    req(/^[A-Z]{3}$/.test(s.currency), `services[${i}].currency: ISO 4217 code`);
+    if (s.price != null || s.currency != null) req(/^[A-Z]{3}$/.test(s.currency), `services[${i}].currency: ISO 4217 code`);
     if (s.minutes == null) missing.push(`services[${i}].minutes (${s.name})`);
     else req(Number.isInteger(s.minutes) && s.minutes > 0, `services[${i}].minutes: positive integer`);
     if (s.price == null) missing.push(`services[${i}].price (${s.name})`);

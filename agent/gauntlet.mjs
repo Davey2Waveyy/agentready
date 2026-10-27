@@ -63,7 +63,10 @@ export function tasks(truth) {
   const tz = truth.timezone;
   const closed = DAYS.find((d) => !truth.hours[d]);
   const open = ['sat', 'sun', 'fri', 'thu', 'wed', 'tue'].filter((d) => truth.hours[d]);
-  const [svcA, svcB, svcC] = [truth.services[0], truth.services[2], truth.services[4]];
+  // Only services the owner gave a duration and price can be tested (real drafts leave gaps for the owner).
+  const ready = truth.services.filter((s) => s.minutes && s.price != null);
+  const paid = ready.filter((s) => s.price > 0); // a free table reservation has no price to get wrong
+  const [svcA, svcB, svcC] = [ready[0], ready[2] ?? ready.at(-1), paid[4] ?? paid.at(-1)];
   const called = (run, name) => run.calls.filter((c) => c.name === name);
   const slotsFor = (run, service, date) => called(run, 'check_availability')
     .filter((c) => c.args.service_id === service && c.args.date === date).flatMap((c) => c.result?.slots ?? []);
@@ -88,7 +91,7 @@ export function tasks(truth) {
       [timesIn(run.answer).includes(closeMin) || new RegExp(`\\b${fmt12(closeMin)}\\b`).test(run.answer), `said ${truth.hours[closeDay][1]}`],
     ],
   });
-  list.push({
+  if (svcC) list.push({
     id: 'price', fact: `${svcC.name} $${svcC.price}`,
     ask: `How much is a ${svcC.name}?`,
     check: (run) => [

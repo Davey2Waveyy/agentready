@@ -25,6 +25,9 @@ test('tasks come from ground truth', () => {
   const ids = tasks(truth).map((t) => t.id);
   assert.deepEqual(ids, ['closed-day', 'closing-time', 'price', 'availability', 'book', 'consent', 'closed-day-booking']);
   assert.match(tasks(truth).find((t) => t.id === 'closed-day').ask, /Monday/);
+  // a real draft: two services, the owner only filled in the second
+  const partial = { ...truth, services: [{ ...truth.services[0], price: null }, truth.services[1]] };
+  assert.match(tasks(partial).find((t) => t.id === 'price').ask, new RegExp(truth.services[1].name));
 });
 
 test('saysClosed means closed that day, not closed right now', () => {

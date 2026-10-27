@@ -65,6 +65,27 @@ Three different Meta models (`muse-spark-1.3`, `muse-wonder-1.0`, `muse-spark-1.
 
 To verify a generated draft before it goes live: `npm run gauntlet -- --config reports/draft-….json`. If the site hasn't installed AgentReady, the test browser adds the script tag itself, so nothing on the owner's site changes until they approve.
 
+## Real sites
+
+8 real Hamilton, Ontario businesses, read from their public websites on Oct 27, 2026. Nobody was contacted and nothing was booked: verify runs every booking against a test calendar.
+
+| Business | Type | Built with | Pages read | Hours | Prices found | Booking found | Owner questions |
+|---|---|---|---|---|---|---|---|
+| Glassbox Barbershop | barber | Shopify | 5 | ✓ | 3/3 | Squire | 11 |
+| Ky & Co. Barbershop | barber | Wix | 1 | ✓ | 0/6 | Squire | 3 |
+| Revelry Beauty Bar | beauty | Shopify | 5 | ✓ | 0/5 | Phorest | 7 |
+| Chosen Canvas | beauty | Squarespace | 5 | by appointment | 3/3 (from Fresha) | Fresha | 7 |
+| Berkeley North | restaurant | Squarespace | 5 | ✓ | 1/1 | — | 8 |
+| Electric Diner | restaurant | WordPress | 5 | ✓ | — | OpenTable | 7 |
+| HAMBRGR | restaurant | custom | 5 | ✓ | 13/13 (menu photos) | OpenTable | 9 |
+| The Burnt Tongue | restaurant | Squarespace | 1 | ✓ | 0/4 | Toast | 6 |
+
+Muse never invents a value: when a site doesn't say (most shops keep prices on their booking platform), it leaves the field empty and asks the owner. It also caught real contradictions the owners would want to know about, like a footer and a contact page listing different hours.
+
+**Verified by all 3 models, broken twin caught 3/3 every time:** Glassbox Barbershop, Ky & Co. Barbershop, Electric Diner. Verify needs a duration and price for at least one service, which the owner normally fills in at review; for these runs we filled only those blanks (durations, Ky & Co's prices from its public Squire listing, and a free 90-minute table reservation for Electric Diner). Everything else came from the sites.
+
+What real sites taught us, now fixed: booking buttons link to dozens of platforms (Muse now sees every outside link instead of a fixed list), prices often live only on the booking page (the reader now opens one booking page), images lazy-load (it scrolls first), and a blocked page used to derail the rest of the crawl. Not fixed: Squire and OpenTable block automated browsers, so those prices come from the owner.
+
 ## Layout
 
 - `public/agentready.js` — the drop-in script (no build step)
