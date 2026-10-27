@@ -13,11 +13,17 @@ People now ask assistants to "book me a haircut tomorrow at 3". Local business s
 
 Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026), Indie track.
 
+**Live:** https://davey2waveyy--agentready-web.us-east.modal.run (the public demo runs in test mode: nothing is booked on a real calendar).
+
 ## Install on a site
 
+Run your site through the app; once it's verified you get a tag like:
+
 ```html
-<script src="https://YOUR-DEPLOY/agentready.js" data-config="agentready.json" data-api="/api" defer></script>
+<script src="https://davey2waveyy--agentready-web.us-east.modal.run/agentready.js" data-site="s-…" defer></script>
 ```
+
+Or self-host the config: `<script src="…/agentready.js" data-config="agentready.json" data-api="/api" defer></script>`. WebMCP only runs on HTTPS pages.
 
 See [`public/barbershop/agentready.json`](public/barbershop/agentready.json) for the config shape.
 
@@ -64,9 +70,10 @@ To verify a generated draft before it goes live: `npm run gauntlet -- --config r
 - `public/agentready.js` — the drop-in script (no build step)
 - `public/barbershop/` — demo business site with AgentReady installed, + its config
 - `public/salon/` — second demo business, not installed: menu only as an image, hours in prose
-- `api/slots.js`, `api/book.js` — Vercel functions proxying Cal.com API v2, one config per business (`site`)
+- `api/` — request handlers: slots/book (Cal.com API v2, one config per business `site`), generate/verify (background jobs), job (resumable event stream), config
 - `agent/` — Muse Spark agent runner, config generator, verification gauntlet
-- `dev.mjs` — local server that mimics Vercel
+- `dev.mjs` — the Node server (local and hosted)
+- `modal_app.py` — hosting: one Modal container with Node + Chrome, configs saved to a Modal Volume. `modal deploy modal_app.py` (needs a Modal secret `agentready` with `MODEL_API_KEY`)
 
 ## Prior work
 
