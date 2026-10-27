@@ -8,8 +8,9 @@ People now ask assistants to "book me a haircut tomorrow at 3". Local business s
 |---|---|
 | `get_business_info` | read: hours, open now, address, phone |
 | `get_services` | read: services with duration and price |
+| `get_menu` | read: menu items with prices (restaurants, cafés; only when the config has a menu) |
 | `check_availability` | read: open times for a service on a date |
-| `book_appointment` | **write**: opens an on-page confirmation; nothing is booked until a human clicks Confirm |
+| `book_appointment` | **write**: opens an on-page confirmation; nothing is booked until a human clicks Confirm. Tables take a `party_size` |
 
 Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026), Indie track.
 
@@ -25,7 +26,7 @@ Run your site through the app; once it's verified you get a tag like:
 
 Or self-host the config: `<script src="…/agentready.js" data-config="agentready.json" data-api="/api" defer></script>`. WebMCP only runs on HTTPS pages.
 
-See [`public/barbershop/agentready.json`](public/barbershop/agentready.json) for the config shape.
+See [`public/barbershop/agentready.json`](public/barbershop/agentready.json) for the config shape. Restaurants add a read-only `menu: [{name, section, price, currency}]` and book a table instead of a service: `{"id": "table", "name": "Table reservation", "kind": "table", "minutes": 90, "maxParty": 8}` (no price; bookings over `maxParty` are refused and the agent is told to call). A midnight close is `"24:00"`.
 
 ## Run locally
 
@@ -75,14 +76,14 @@ To verify a generated draft before it goes live: `npm run gauntlet -- --config r
 | Ky & Co. Barbershop | barber | Wix | 1 | ✓ | 0/6 | Squire | 3 |
 | Revelry Beauty Bar | beauty | Shopify | 5 | ✓ | 0/5 | Phorest | 7 |
 | Chosen Canvas | beauty | Squarespace | 5 | by appointment | 3/3 (from Fresha) | Fresha | 7 |
-| Berkeley North | restaurant | Squarespace | 5 | ✓ | 1/1 | — | 8 |
+| Berkeley North | restaurant | Squarespace | 5 | ✓ | 22 menu items | — | 8 |
 | Electric Diner | restaurant | WordPress | 5 | ✓ | — | OpenTable | 7 |
-| HAMBRGR | restaurant | custom | 5 | ✓ | 13/13 (menu photos) | OpenTable | 9 |
+| HAMBRGR | restaurant | custom | 5 | ✓ | 56 menu items (from menu photos) | OpenTable | 9 |
 | The Burnt Tongue | restaurant | Squarespace | 1 | ✓ | 0/4 | Toast | 6 |
 
 Muse never invents a value: when a site doesn't say (most shops keep prices on their booking platform), it leaves the field empty and asks the owner. It also caught real contradictions the owners would want to know about, like a footer and a contact page listing different hours.
 
-**Verified by all 3 models, broken twin caught 3/3 every time:** Glassbox Barbershop, Ky & Co. Barbershop, Electric Diner. Verify needs a duration and price for at least one service, which the owner normally fills in at review; for these runs we filled only those blanks (durations, Ky & Co's prices from its public Squire listing, and a free 90-minute table reservation for Electric Diner). Everything else came from the sites.
+**Verified by all 3 models, broken twin caught 3/3 every time:** Glassbox Barbershop, Ky & Co. Barbershop, Electric Diner, HAMBRGR (menu prices quoted via `get_menu`, tables booked for a party of 4). Verify needs a duration and price for at least one service, which the owner normally fills in at review; for these runs we filled only those blanks (durations, Ky & Co's prices from its public Squire listing, and how long a table is held and the largest online party for the restaurants). Everything else came from the sites.
 
 What real sites taught us, now fixed: booking buttons link to dozens of platforms (Muse now sees every outside link instead of a fixed list), prices often live only on the booking page (the reader now opens one booking page), images lazy-load (it scrolls first), and a blocked page used to derail the rest of the crawl. Not fixed: Squire and OpenTable block automated browsers, so those prices come from the owner.
 

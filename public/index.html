@@ -152,6 +152,10 @@
         <div class="scroll"><table class="services" id="services"></table></div>
         <details class="evidence" id="evidence"><summary>Where each value came from</summary><dl></dl></details>
       </div>
+      <div class="card" id="menu-card" style="margin-top:16px" hidden>
+        <h3>Menu</h3><p class="hint" style="margin:-6px 0 10px">Agents can quote these prices. They aren't bookable.</p>
+        <div class="scroll"><table class="services" id="menu"></table></div>
+      </div>
       <div class="actions">
         <button id="verify-btn">Looks right, verify it</button>
         <span class="hint">Three Meta models will try real customer requests against your site.</span>
@@ -261,14 +265,23 @@
       $('#hours').innerHTML = `<h3>Hours</h3><table>${DAYS.map((d) => {
         const h = c.hours?.[d];
         return `<tr><td class="day">${d[0].toUpperCase() + d.slice(1)}</td>
-          <td><input class="v" type="time" data-hour="${d}.0" value="${h?.[0] ?? ''}" ${h ? '' : 'disabled'}></td>
-          <td><input class="v" type="time" data-hour="${d}.1" value="${h?.[1] ?? ''}" ${h ? '' : 'disabled'}></td>
+          <td><input class="v" inputmode="numeric" placeholder="HH:MM" aria-label="${d} opens" data-hour="${d}.0" value="${h?.[0] ?? ''}" ${h ? '' : 'disabled'}></td>
+          <td><input class="v" inputmode="numeric" placeholder="HH:MM" aria-label="${d} closes (midnight is 24:00)" data-hour="${d}.1" value="${h?.[1] ?? ''}" ${h ? '' : 'disabled'}></td>
           <td class="closed"><label><input type="checkbox" data-closed="${d}" ${h ? '' : 'checked'}> Closed</label></td></tr>`;
       }).join('')}</table>`;
-      $('#services').innerHTML = `<tr><th>Service</th><th>Minutes</th><th>Price</th><th>Currency</th><th>Booking slug</th><th></th></tr>` +
-        c.services.map((s, i) => `<tr>${['name', 'minutes', 'price', 'currency', 'calEventSlug'].map((k) =>
-          `<td><input class="v${s[k] == null && k !== 'calEventSlug' ? ' missing' : ''}" data-svc="${i}.${k}" ${['minutes', 'price'].includes(k) ? 'type="number" min="0" step="any"' : ''} value="${esc(s[k])}"></td>`).join('')}
+      // A table reservation has no price; it has the largest party agents may book online instead.
+      const tables = c.services.some((s) => s.kind === 'table');
+      const cell = (s, i, k) => s.kind === 'table' && ['price', 'currency'].includes(k) ? '<td class="hint">—</td>'
+        : k === 'maxParty' && s.kind !== 'table' ? '<td></td>'
+        : `<td><input class="v${s[k] == null && k !== 'calEventSlug' ? ' missing' : ''}" data-svc="${i}.${k}" ${['minutes', 'price', 'maxParty'].includes(k) ? 'type="number" min="0" step="any"' : ''} value="${esc(s[k])}"></td>`;
+      $('#services').innerHTML = `<tr><th>Service</th><th>Minutes</th><th>Price</th><th>Currency</th>${tables ? '<th>Max party</th>' : ''}<th>Booking slug</th><th></th></tr>` +
+        c.services.map((s, i) => `<tr>${['name', 'minutes', 'price', 'currency', ...(tables ? ['maxParty'] : []), 'calEventSlug'].map((k) => cell(s, i, k)).join('')}
           <td><button class="ghost" data-del="${i}" aria-label="Remove ${esc(s.name)}" style="padding:6px 10px">×</button></td></tr>`).join('');
+      $('#menu-card').hidden = !c.menu?.length;
+      $('#menu').innerHTML = `<tr><th>Item</th><th>Section</th><th>Price</th><th></th></tr>` + (c.menu ?? []).map((m, i) => `<tr>
+          <td><input class="v" data-menu="${i}.name" value="${esc(m.name)}"></td><td><input class="v" data-menu="${i}.section" value="${esc(m.section)}"></td>
+          <td><input class="v" type="number" min="0" step="any" data-menu="${i}.price" value="${esc(m.price)}"></td>
+          <td><button class="ghost" data-del-menu="${i}" aria-label="Remove ${esc(m.name)}" style="padding:6px 10px">×</button></td></tr>`).join('');
       const qs = draft.questions || [];
       $('#questions').hidden = !qs.length;
       $('#questions ol').innerHTML = qs.map((q) => `<li>${esc(q)}</li>`).join('');
@@ -286,7 +299,11 @@
         draft.config.services[i][k] = t.type === 'number' ? (t.value === '' ? null : Number(t.value)) : t.value;
         if (k === 'name' && !draft.config.services[i].id) draft.config.services[i].id = t.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       }
-      if (t.classList.contains('v')) t.classList.toggle('missing', t.value === '');
+      if (t.dataset.menu) {
+        const [i, k] = t.dataset.menu.split('.');
+        draft.config.menu[i][k] = t.type === 'number' ? (t.value === '' ? null : Number(t.value)) : t.value;
+      }
+      if (t.classList.contains('v') && !t.dataset.menu) t.classList.toggle('missing', t.value === '');
     });
     $('#s-review').addEventListener('change', (e) => {
       const d = e.target.dataset.closed;
@@ -295,6 +312,8 @@
     $('#s-review').addEventListener('click', (e) => {
       const i = e.target.dataset.del;
       if (i !== undefined) { draft.config.services.splice(+i, 1); renderReview(); }
+      const m = e.target.dataset.delMenu;
+      if (m !== undefined) { draft.config.menu.splice(+m, 1); renderReview(); }
     });
 
     // ---- verify: live matrix, one cell per (task, model) ----

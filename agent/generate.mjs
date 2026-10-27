@@ -69,13 +69,17 @@ config shape:
   "timezone": IANA zone of the address, e.g. "America/Vancouver",
   "phone": "+1-604-555-0100" style, or null,
   "address": {"street", "city", "region", "postal", "country" (ISO 3166 alpha-2)} or null,
-  "hours": {"mon": ["HH:MM", "HH:MM"] 24-hour open and close, or null when closed, ... for all of mon tue wed thu fri sat sun},
+  "hours": {"mon": ["HH:MM", "HH:MM"] 24-hour open and close (closing at midnight is "24:00"; later than that is "24:00" plus a question), or null when closed, ... for all of mon tue wed thu fri sat sun},
   "services": [{"id": lowercase-kebab-case from the name, "name": as written, "minutes": integer duration or null, "price": number without symbol or null, "currency": ISO 4217}],
+  "menu": [{"name": as written, "section": menu heading or null, "price": number or null, "currency": ISO 4217}] (food and drink; [] if none),
   "booking": {"provider": lowercase platform name, e.g. "calcom", "calendly", "fresha", "square", "squire", "opentable", or null, "username": account name or slug from the booking link or "", "url": booking page or null}
 }
 Rules:
 - A value the site doesn't state is null, with a question for the owner. Hours that aren't listed are a question, not "closed".
 - "From $30" or "$30+" is price 30 with a question confirming it.
+- services are what a customer books. Food and drink go in menu, never in services (up to 60 items, most popular first).
+- Only if the site shows the place takes reservations (a reservation link, button or text), add one service {"id": "table", "name": "Table reservation", "kind": "table", "minutes": how long a table is held, or null, "price": null, "currency": null, "maxParty": largest party bookable online, or null}. Ask the owner for whichever is null.
+- If an item name only makes sense under its menu heading, include the heading (e.g. "Brow shape").
 - Booking buttons usually link to another site; find them in "Links to other sites".
 - If a cal.com link points at a specific service (cal.com/<username>/<slug>), add "calEventSlug": "<slug>" to that service.`;
 
@@ -107,9 +111,9 @@ export function validate(c) {
   for (const d of DAYS) {
     const h = c.hours?.[d];
     if (h === undefined) errors.push(`hours.${d}: missing (use null if closed)`);
-    else if (h !== null) req(Array.isArray(h) && h.length === 2 && h.every((t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)) && h[0] < h[1], `hours.${d}: must be ["HH:MM","HH:MM"], open before close`);
+    else if (h !== null) req(Array.isArray(h) && h.length === 2 && /^([01]\d|2[0-3]):[0-5]\d$/.test(h[0]) && /^(([01]\d|2[0-3]):[0-5]\d|24:00)$/.test(h[1]) && h[0] < h[1], `hours.${d}: must be ["HH:MM","HH:MM"], open before close (midnight close is "24:00")`);
   }
-  if (!Array.isArray(c.services) || !c.services.length) errors.push('services: at least one');
+  if (!Array.isArray(c.services) || (!c.services.length && !c.menu?.length)) errors.push('services: at least one (or a menu)');
   const ids = new Set();
   (c.services || []).forEach((s, i) => {
     req(/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.id) && !ids.has(s.id), `services[${i}].id: unique lowercase-kebab-case`);
@@ -118,8 +122,14 @@ export function validate(c) {
     if (s.price != null || s.currency != null) req(/^[A-Z]{3}$/.test(s.currency), `services[${i}].currency: ISO 4217 code`);
     if (s.minutes == null) missing.push(`services[${i}].minutes (${s.name})`);
     else req(Number.isInteger(s.minutes) && s.minutes > 0, `services[${i}].minutes: positive integer`);
-    if (s.price == null) missing.push(`services[${i}].price (${s.name})`);
+    if (s.kind === 'table') { if (s.maxParty == null) missing.push(`services[${i}].maxParty (largest party bookable online)`); else req(Number.isInteger(s.maxParty) && s.maxParty > 0, `services[${i}].maxParty: positive integer`); }
+    else if (s.price == null) missing.push(`services[${i}].price (${s.name})`);
     else req(typeof s.price === 'number' && s.price >= 0, `services[${i}].price: number`);
+  });
+  if (c.menu != null && !Array.isArray(c.menu)) errors.push('menu: a list');
+  (Array.isArray(c.menu) ? c.menu : []).forEach((m, i) => {
+    req(typeof m.name === 'string' && m.name, `menu[${i}].name: required`);
+    if (m.price != null) req(typeof m.price === 'number' && m.price >= 0 && /^[A-Z]{3}$/.test(m.currency), `menu[${i}]: price a number with an ISO 4217 currency`);
   });
   if (!c.phone) missing.push('phone');
   if (!c.address) missing.push('address');

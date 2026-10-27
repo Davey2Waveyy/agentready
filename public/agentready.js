@@ -1,4 +1,4 @@
-// AgentReady: exposes a small business's hours, services and booking to AI agents via WebMCP.
+// AgentReady: exposes a small business's hours, services, menu and booking to AI agents via WebMCP.
 // On any site:   <script src="https://AGENTREADY-HOST/agentready.js" data-site="id" defer></script>  (config + API from the AgentReady host)
 // Self-hosted:    <script src="/agentready.js" data-config="agentready.json" data-api="/api" defer></script>
 (() => {
@@ -45,7 +45,7 @@
   }
 
   // The write gate: a human must click Confirm on the page. The agent never gets a way around it.
-  function confirmWithHuman(summary) {
+  function confirmWithHuman(summary, what = 'appointment') {
     const dialog = document.createElement('dialog');
     dialog.className = 'agentready-confirm';
     dialog.innerHTML = `
@@ -63,7 +63,7 @@
       </style>
       <form method="dialog">
         <p class="ar-tag">An AI assistant wants to book for you</p>
-        <h2>Confirm this appointment?</h2>
+        <h2>Confirm this ${what}?</h2>
         <dl></dl>
         <div class="ar-row"><button value="no">Cancel</button><button value="yes" autofocus>Confirm booking</button></div>
       </form>`;
@@ -83,6 +83,18 @@
   function tools(c) {
     const service = (id) => c.services.find((s) => s.id === id);
     const serviceIds = c.services.map((s) => s.id).join(', ');
+    // A restaurant table (kind "table") is booked for a party; the server checks the size too.
+    const partyError = (s, n) => s.kind !== 'table' ? null
+      : !Number.isInteger(n) || n < 1 ? { error: 'party_size_required', next_action: 'Ask how many people, then pass party_size.' }
+      : s.maxParty && n > s.maxParty ? { error: 'party_too_large', next_action: `Online booking takes up to ${s.maxParty} people. Ask the customer to call ${c.phone || c.name}.` }
+      : null;
+    const menu = c.menu?.length ? [{
+      name: 'get_menu',
+      description: `Menu items at ${c.name} with prices. Read only: these are not bookable.`,
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async () => ({ menu: c.menu.map(({ name, section, price, currency }) => ({ name, section, price, currency })) }),
+    }] : [];
     return [
       {
         name: 'get_business_info',
@@ -96,8 +108,10 @@
         description: `Services offered by ${c.name} with duration and price. Use the id with check_availability and book_appointment.`,
         inputSchema: { type: 'object', properties: {} },
         annotations: { readOnlyHint: true },
-        execute: async () => ({ services: c.services.map(({ id, name, minutes, price, currency }) => ({ id, name, minutes, price, currency })) }),
+        execute: async () => ({ services: c.services.map(({ id, name, minutes, price, currency, kind, maxParty }) =>
+          ({ id, name, minutes, price, currency, ...(kind === 'table' && { table_reservation: true, max_party: maxParty ?? null }) })) }),
       },
+      ...menu,
       {
         name: 'check_availability',
         description: `Open appointment times for a service on one date (business timezone ${c.timezone}). Service ids: ${serviceIds}.`,
@@ -106,12 +120,15 @@
           properties: {
             service_id: { type: 'string', description: `One of: ${serviceIds}` },
             date: { type: 'string', description: 'YYYY-MM-DD in the business timezone' },
+            party_size: { type: 'integer', description: 'Number of people, for table reservations' },
           },
           required: ['service_id', 'date'],
         },
         annotations: { readOnlyHint: true },
-        async execute({ service_id, date }) {
-          if (!service(service_id)) return { error: 'unknown_service', next_action: `Use one of: ${serviceIds}` };
+        async execute({ service_id, date, party_size }) {
+          const s = service(service_id);
+          if (!s) return { error: 'unknown_service', next_action: `Use one of: ${serviceIds}` };
+          if (party_size !== undefined && partyError(s, party_size)) return partyError(s, party_size);
           const res = await fetch(`${api}/slots?${new URLSearchParams({ site, service: service_id, date })}`);
           const data = await res.json();
           if (!res.ok) return { error: data.error, next_action: 'Fix the input and try again.' };
@@ -120,7 +137,7 @@
       },
       {
         name: 'book_appointment',
-        description: 'Book an appointment. Opens a confirmation dialog the customer must approve on the page; nothing is booked until they click Confirm. Use a start value returned by check_availability.',
+        description: 'Book an appointment or table. Opens a confirmation dialog the customer must approve on the page; nothing is booked until they click Confirm. Use a start value returned by check_availability.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -128,21 +145,25 @@
             start: { type: 'string', description: 'ISO 8601 start time exactly as returned by check_availability' },
             name: { type: 'string', description: "Customer's full name" },
             email: { type: 'string', description: "Customer's email for the confirmation" },
+            party_size: { type: 'integer', description: 'Number of people (required for table reservations)' },
           },
           required: ['service_id', 'start', 'name', 'email'],
         },
         annotations: { readOnlyHint: false },
-        async execute({ service_id, start, name, email }) {
+        async execute({ service_id, start, name, email, party_size }) {
           const s = service(service_id);
           if (!s) return { error: 'unknown_service', next_action: `Use one of: ${serviceIds}` };
+          if (partyError(s, party_size)) return partyError(s, party_size);
           if (Number.isNaN(Date.parse(start))) return { error: 'invalid_start', next_action: 'Call check_availability and use one of its start values.' };
+          const table = s.kind === 'table';
           const answer = await confirmWithHuman({
-            Service: `${s.name} · ${s.minutes} min`, Price: `$${s.price} ${s.currency}`,
+            ...(table ? { Table: `Party of ${party_size}` } : { Service: `${s.name} · ${s.minutes} min` }),
+            ...(s.price > 0 && { Price: `$${s.price} ${s.currency}` }),
             When: fmt(start, c.timezone), Name: String(name), Email: String(email), At: c.name,
-          });
+          }, table ? 'reservation' : 'appointment');
           if (answer !== 'yes') return { booked: false, reason: answer === 'timeout' ? 'no_response' : 'declined_by_customer', next_action: 'Tell the customer nothing was booked. Do not retry unless they ask.' };
           try {
-            const b = await post('/book', { service_id, start, name, email });
+            const b = await post('/book', { service_id, start, name, email, ...(table && { party_size }) });
             return { booked: true, ...b, next_action: b.mock ? 'Tell the customer it is booked (test mode: no email is sent).' : 'Tell the customer it is booked and a confirmation email is on its way.' };
           } catch (e) {
             return { booked: false, error: e.message, next_action: e.data?.next_action || 'Apologize and offer another time.' };

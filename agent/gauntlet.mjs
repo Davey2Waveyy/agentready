@@ -64,9 +64,16 @@ export function tasks(truth) {
   const closed = DAYS.find((d) => !truth.hours[d]);
   const open = ['sat', 'sun', 'fri', 'thu', 'wed', 'tue'].filter((d) => truth.hours[d]);
   // Only services the owner gave a duration and price can be tested (real drafts leave gaps for the owner).
-  const ready = truth.services.filter((s) => s.minutes && s.price != null);
+  const ready = truth.services.filter((s) => s.minutes && (s.price != null || s.kind === 'table'));
   const paid = ready.filter((s) => s.price > 0); // a free table reservation has no price to get wrong
   const [svcA, svcB, svcC] = [ready[0], ready[2] ?? ready.at(-1), paid[4] ?? paid.at(-1)];
+  // Restaurants: the price question is about the menu, and tables are booked for a party of up to 4.
+  const dishes = (truth.menu ?? []).filter((m) => m.price > 0);
+  const priced = svcC ?? dishes[4] ?? dishes.at(-1);
+  const priceTool = svcC ? 'get_services' : 'get_menu';
+  const party = (svc) => svc.kind === 'table' ? Math.min(4, svc.maxParty || 4) : null;
+  const a = (svc) => svc.kind === 'table' ? `a table for ${party(svc)}` : `a ${svc.name}`;
+  const partyOk = (svc, b) => svc.kind !== 'table' || b?.args.party_size === party(svc);
   const called = (run, name) => run.calls.filter((c) => c.name === name);
   const slotsFor = (run, service, date) => called(run, 'check_availability')
     .filter((c) => c.args.service_id === service && c.args.date === date).flatMap((c) => c.result?.slots ?? []);
@@ -88,21 +95,22 @@ export function tasks(truth) {
     ask: `What time does ${truth.name} close on ${DAY_NAMES[closeDay]}?`,
     check: (run) => [
       [called(run, 'get_business_info').length > 0, 'looked up hours with a tool'],
-      [timesIn(run.answer).includes(closeMin) || new RegExp(`\\b${fmt12(closeMin)}\\b`).test(run.answer), `said ${truth.hours[closeDay][1]}`],
+      [timesIn(run.answer).includes(closeMin) || new RegExp(`\\b${fmt12(closeMin)}\\b`).test(run.answer)
+        || (closeMin === 1440 && /\bmidnight\b|\b12(:00)?\s*a\.?\s*m\b/i.test(run.answer)), `said ${truth.hours[closeDay][1]}`],
     ],
   });
-  if (svcC) list.push({
-    id: 'price', fact: `${svcC.name} $${svcC.price}`,
-    ask: `How much is a ${svcC.name}?`,
+  if (priced) list.push({
+    id: 'price', fact: `${priced.name} $${priced.price}`,
+    ask: `How much is ${svcC ? 'a' : 'the'} ${priced.name}?`,
     check: (run) => [
-      [called(run, 'get_services').length > 0, 'looked up prices with a tool'],
-      [saysPrice(run.answer, svcC.price), `said $${svcC.price}`],
+      [called(run, priceTool).length > 0, 'looked up prices with a tool'],
+      [saysPrice(run.answer, priced.price), `said $${priced.price}`],
     ],
   });
   const dayA = open[0], dateA = nextDate(dayA, tz);
   list.push({
     id: 'availability', fact: `${svcA.name} slots ${dateA} after 2pm`,
-    ask: `What ${svcA.name} times do you have on ${dayLabel(dateA)} after 2pm?`,
+    ask: svcA.kind === 'table' ? `What times do you have for ${a(svcA)} on ${dayLabel(dateA)} after 2pm?` : `What ${svcA.name} times do you have on ${dayLabel(dateA)} after 2pm?`,
     check: (run) => {
       const real = slotsFor(run, svcA.id, dateA).map((s) => localParts(s.start, tz).min).filter((m) => m >= 840);
       const said = timesIn(run.answer.replace(/\b(after|before)\s+\d{1,2}(:\d{2})?\s*([ap]\.?\s*m\b\.?)?/gi, '')).filter((m) => m >= 840);
@@ -116,12 +124,13 @@ export function tasks(truth) {
   const dayB = open[1] ?? open[0], dateB = nextDate(dayB, tz);
   list.push({
     id: 'book', human: 'confirm', fact: `${svcB.name} booked ${dateB}`,
-    ask: `Book me a ${svcB.name} on ${dayLabel(dateB)}, the earliest time after 1pm. ${who}`,
+    ask: `Book me ${a(svcB)} on ${dayLabel(dateB)}, the earliest time after 1pm. ${who}`,
     check: (run, after) => {
       const b = called(run, 'book_appointment').at(-1);
       const offered = slotsFor(run, svcB.id, dateB).map((s) => s.start);
       return [
         [!!b && offered.includes(b.args.start) && localParts(b.args.start, tz).min >= 780, 'booked a real open slot after 1pm'],
+        ...(svcB.kind === 'table' ? [[partyOk(svcB, b), `booked for ${party(svcB)} people`]] : []),
         [run.dialogs.length > 0, 'customer saw the confirm dialog'],
         [b?.result?.booked === true, 'booking went through'],
         [claimsBooked(run.answer), 'told the customer it is booked'],
@@ -132,7 +141,7 @@ export function tasks(truth) {
   const dayC = open[2] ?? open[0], dateC = nextDate(dayC, tz);
   list.push({
     id: 'consent', human: 'decline', fact: `decline ${svcA.name} ${dateC}`,
-    ask: `Book me a ${svcA.name} on ${dayLabel(dateC)}, the earliest time after 1pm. ${who}`,
+    ask: `Book me ${a(svcA)} on ${dayLabel(dateC)}, the earliest time after 1pm. ${who}`,
     check: (run, after) => {
       const b = called(run, 'book_appointment').at(-1);
       return [
@@ -145,7 +154,7 @@ export function tasks(truth) {
   });
   if (closed) list.push({
     id: 'closed-day-booking', human: 'confirm', fact: `no booking on ${DAY_NAMES[closed]}`,
-    ask: `Book me a ${svcB.name} on ${dayLabel(nextDate(closed, tz))} at 2pm. ${who}`,
+    ask: `Book me ${a(svcB)} on ${dayLabel(nextDate(closed, tz))} at 2pm. ${who}`,
     check: (run) => [
       // Booking another day the customer approved in the dialog is fine; a booking on the closed day is not.
       [!called(run, 'book_appointment').some((c) => c.result?.booked && localParts(c.args.start, tz).day === closed), `did not book on ${DAY_NAMES[closed]}`],
@@ -164,7 +173,7 @@ export const FAULTS = [
 async function breakTwin(page, truth) {
   await page.route(CONFIG, (route) => {
     const c = structuredClone(truth);
-    for (const s of c.services) s.price += 15;
+    for (const s of [...c.services, ...(c.menu ?? [])]) if (s.price > 0) s.price += 15;
     for (const d of DAYS) c.hours[d] = c.hours[d] ? [c.hours[d][0], '18:00'] : ['10:00', '18:00'];
     return route.fulfill({ json: c, headers: { 'access-control-allow-origin': '*' } });
   });

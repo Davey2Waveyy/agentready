@@ -28,6 +28,14 @@ test('tasks come from ground truth', () => {
   // a real draft: two services, the owner only filled in the second
   const partial = { ...truth, services: [{ ...truth.services[0], price: null }, truth.services[1]] };
   assert.match(tasks(partial).find((t) => t.id === 'price').ask, new RegExp(truth.services[1].name));
+  // a restaurant: prices come from the menu, tables are booked for a party
+  const diner = { ...truth, menu: [{ name: 'The O.G. Poutine', price: 14, currency: 'CAD' }],
+    services: [{ id: 'table', name: 'Table reservation', kind: 'table', minutes: 90, price: null, currency: null, maxParty: 8 }] };
+  const t = Object.fromEntries(tasks(diner).map((x) => [x.id, x.ask]));
+  assert.match(t.price, /the The O.G. Poutine|The O.G. Poutine/);
+  assert.match(t.book, /a table for 4/);
+  const late = tasks({ ...diner, hours: { ...truth.hours, sat: ['11:30', '24:00'] } }).find((x) => x.id === 'closing-time');
+  if (late.ask.includes('Saturday')) assert.ok(late.check({ answer: 'We close at midnight on Saturday.', calls: [{ name: 'get_business_info' }] }).every(([ok]) => ok));
 });
 
 test('saysClosed means closed that day, not closed right now', () => {

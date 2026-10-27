@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GET } from './api/slots.js';
 import { POST } from './api/book.js';
-import { siteConfig, local as localTz } from './api/_lib.js';
+import { siteConfig, addSite, local as localTz } from './api/_lib.js';
 
 const config = siteConfig('barbershop');
 const local = (when) => localTz(when, config.timezone);
@@ -67,4 +67,17 @@ test('each site gets its own services and calendar', async () => {
   const s = (await open({ site: 'salon', service: 'brow-shape' })).findLast((x) => barber.includes(x)); // open at both
   assert.equal((await book({ site: 'salon', service_id: 'brow-shape', start: s, name: 'Ana', email: 'ana@example.com' })).status, 200);
   assert.equal((await book({ service_id: 'skin-fade', start: s, name: 'Ana', email: 'ana@example.com' })).status, 200); // same time, other business
+});
+
+test('a table is booked for a party, within the online limit', async () => {
+  const site = addSite({ ...config, name: 'Test Diner', menu: [{ name: 'Poutine', price: 14, currency: 'CAD' }],
+    services: [{ id: 'table', name: 'Table reservation', kind: 'table', minutes: 90, price: null, currency: null, maxParty: 6 }] });
+  const d = tomorrowOpen();
+  const { slots: s } = await (await slots({ site, service: 'table', date: d.date })).json();
+  const ok = { site, service_id: 'table', start: s[0].start, name: 'Sam Lee', email: 'sam@example.com' };
+  assert.equal((await book(ok)).status, 400); // no party size
+  assert.equal((await book({ ...ok, party_size: 7 })).status, 400); // over the online limit
+  const res = await book({ ...ok, party_size: 4 });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).party_size, 4);
 });

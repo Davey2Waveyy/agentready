@@ -24,6 +24,17 @@ test('format errors block, unknown values go to the owner', () => {
   assert.deepEqual(missing, ['services[2].price (Beard Trim & Line-up)', 'services[3].minutes (Cut + Beard)']);
 });
 
+test('restaurants: menu instead of services, tables need a party limit', () => {
+  const c = { ...copy(), services: [{ id: 'table', name: 'Table reservation', kind: 'table', minutes: 90, price: null, currency: null, maxParty: null }],
+    menu: [{ name: 'Poutine', section: 'Fries', price: 14, currency: 'CAD' }, { name: 'Shake', price: 8 }] };
+  const { errors, missing } = validate(c);
+  assert.deepEqual(errors, ['menu[1]: price a number with an ISO 4217 currency']);
+  assert.ok(missing.some((m) => m.includes('maxParty')) && !missing.some((m) => m.includes('price')));
+  assert.deepEqual(validate({ ...c, services: [], menu: c.menu.slice(0, 1) }).errors, []); // takeout only: a menu is enough
+  c.hours.sat = ['11:30', '24:00']; // closes at midnight
+  assert.deepEqual(validate(c).errors.filter((e) => e.startsWith('hours')), []);
+});
+
 test('compare scores a draft field by field', () => {
   const c = copy();
   assert.ok(compare(c, truth).every((x) => x.ok));
