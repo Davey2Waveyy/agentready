@@ -159,13 +159,13 @@ export const FAULTS = [
   { id: 'no-consent-gate', what: 'confirm dialog auto-approves without the customer', caughtBy: ['consent'] },
 ];
 async function breakTwin(page, truth) {
-  await page.route(/\/agentready\.json(\?|$)/, (route) => {
+  await page.route(CONFIG, (route) => {
     const c = structuredClone(truth);
     for (const s of c.services) s.price += 15;
     for (const d of DAYS) c.hours[d] = c.hours[d] ? [c.hours[d][0], '18:00'] : ['10:00', '18:00'];
-    return route.fulfill({ json: c });
+    return route.fulfill({ json: c, headers: { 'access-control-allow-origin': '*' } });
   });
-  await page.route('**/api/book', (route) => route.fulfill({ status: 500, json: { error: 'internal_error' } }));
+  await page.route(/\/api\/book$/, (route) => route.fulfill({ status: 500, json: { error: 'internal_error' }, headers: { 'access-control-allow-origin': '*' } }));
   await page.addInitScript(() => {
     // Open and instantly approve. close() is a no-op on a never-opened dialog, hence show() first.
     HTMLDialogElement.prototype.showModal = function () { this.show(); this.close('yes'); };
@@ -173,12 +173,13 @@ async function breakTwin(page, truth) {
 }
 
 // Verify before going live: a site that hasn't installed AgentReady gets the script tag added in the test browser only.
-function installAgentReady() {
+// With `site`, the tag points at AgentReady's host (as the real install would), which the test browser routes to `api`.
+const HOST = 'https://agentready.test';
+function installAgentReady({ host, site }) {
   document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('script[src$="agentready.js"]')) return;
     const s = document.createElement('script');
-    Object.assign(s.dataset, { config: 'agentready.json', api: '/api' });
-    s.src = '/agentready.js';
+    if (site) { s.dataset.site = site; s.src = `${host}/agentready.js`; } else { Object.assign(s.dataset, { config: 'agentready.json', api: '/api' }); s.src = '/agentready.js'; }
     document.head.append(s);
   });
 }
@@ -196,18 +197,23 @@ function actAsHuman(page, mode, dialogs) {
   })();
 }
 
+const CONFIG = /\/agentready\.json(\?|$)|\/api\/config\?/; // a self-hosted config file, or the host's config endpoint
 // A draft under verification: the test browser gets the draft config, and API calls name the draft's site id.
 async function serveDraft(page, config, site) {
-  await page.route(/\/agentready\.json(\?|$)/, (r) => r.fulfill({ json: config }));
-  await page.route(/\/api\/slots\?/, (r) => { const u = new URL(r.request().url()); u.searchParams.set('site', site); return r.continue({ url: u.href }); });
-  await page.route(/\/api\/book$/, (r) => r.continue({ postData: JSON.stringify({ ...r.request().postDataJSON(), site }) }));
+  await page.route(CONFIG, (r) => r.fulfill({ json: config, headers: { 'access-control-allow-origin': '*' } }));
+  // A site with its own tag (no data-site) calls its own /api: name the draft. Calls to the host already carry it.
+  const own = (r) => !r.request().url().startsWith(HOST);
+  await page.route(/\/api\/slots\?/, (r) => { if (!own(r)) return r.fallback(); const u = new URL(r.request().url()); u.searchParams.set('site', site); return r.continue({ url: u.href }); });
+  await page.route(/\/api\/book$/, (r) => own(r) ? r.continue({ postData: JSON.stringify({ ...r.request().postDataJSON(), site }) }) : r.fallback());
 }
 
-async function runTask(browser, url, task, { twin, truth, site, draft, llm }) {
+async function runTask(browser, url, task, { twin, truth, site, draft, api, llm }) {
   const page = await browser.newPage();
+  // The AgentReady host, as seen from the test browser: our own server (an installed site's tag points there).
+  await page.route(`${HOST}/**`, async (r) => r.fulfill({ response: await r.fetch({ url: r.request().url().replace(HOST, api) }) }));
   if (draft) await serveDraft(page, truth, site);
   if (twin) await breakTwin(page, truth); // registered last, so its routes win
-  await page.addInitScript(installAgentReady);
+  await page.addInitScript(installAgentReady, { host: HOST, site: draft ? site : null });
   await page.goto(url);
   await waitForTools(page);
   const run = { calls: [], dialogs: [], answer: '' };
@@ -225,11 +231,10 @@ async function runTask(browser, url, task, { twin, truth, site, draft, llm }) {
     run.answer = `ERROR: ${e.message}`;
   }
   // Live availability after the run, straight from the server (not through the possibly-broken page).
-  const origin = new URL(url).origin;
   const cache = {};
   for (const c of run.calls.filter((c) => c.name === 'check_availability')) {
     const k = `${c.args.service_id}|${c.args.date}`;
-    cache[k] ??= (await (await fetch(`${origin}/api/slots?${new URLSearchParams({ site, service: c.args.service_id, date: c.args.date })}`)).json()).slots?.map((s) => s.start) ?? [];
+    cache[k] ??= (await (await fetch(`${api}/api/slots?${new URLSearchParams({ site, service: c.args.service_id, date: c.args.date })}`)).json()).slots?.map((s) => s.start) ?? [];
   }
   const after = { slots: (s, d) => cache[`${s}|${d}`] ?? [] };
   await page.close();
@@ -237,8 +242,9 @@ async function runTask(browser, url, task, { twin, truth, site, draft, llm }) {
   return { id: task.id, pass: checks.every((c) => c.ok), checks, answer: run.answer, calls: run.calls.map((c) => c.name), dialogs: run.dialogs.length };
 }
 
-// `config` + `site`: verify a draft (registered with addDraft) instead of the config the site serves.
-export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log, config, site, onTasks = () => {}, onRunning = () => {}, onResult = () => {} } = {}) {
+// `config` + `site`: verify a draft (registered with addSite) instead of the config the site serves.
+// `api`: where AgentReady's API runs, from this process (default: the site's own origin, like the demos).
+export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log, config, site, api = new URL(url).origin, onTasks = () => {}, onRunning = () => {}, onResult = () => {} } = {}) {
   const configUrl = new URL('agentready.json', url); // ponytail: assumes config sits next to the page
   const truth = config ?? await (await fetch(configUrl)).json(); // ground truth = the owner-approved config
   site ??= configUrl.pathname.split('/').at(-2); // same id agentready.js sends
@@ -250,7 +256,7 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log, conf
     for (const [side, twin] of [['site', false], ['twin', true]]) {
       for (const task of list) {
         onRunning(side, task.id);
-        const r = await runTask(browser, url, task, { twin, truth, site, draft: !!config, llm });
+        const r = await runTask(browser, url, task, { twin, truth, site, draft: !!config, api, llm });
         onResult(side, r);
         report[side].push(r);
         log(`${side === 'site' ? 'site' : 'twin'}  ${r.pass ? 'PASS' : 'FAIL'}  ${task.id.padEnd(19)} ${r.checks.filter((c) => !c.ok).map((c) => '✗ ' + c.label).join('; ')}`);
@@ -296,7 +302,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (config && /^https?:/.test(arg)) throw new Error('--config verifies on a demo site (barbershop, salon); use the app for other URLs');
   const server = /^https?:/.test(arg) ? null : await demoServer({ site: arg });
   const url = server?.url || arg;
-  const site = config && (await import('../api/_lib.js')).addDraft(config);
+  const site = config && (await import('../api/_lib.js')).addSite(config);
   try {
     console.log(`gauntlet: ${models.join(', ')} on ${url}${draftFile ? ` with ${draftFile}` : ''}`);
     // ponytail: skeptics run one after another; the mock calendar is shared, so parallel runs would race for the same slot

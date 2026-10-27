@@ -1,9 +1,13 @@
 // AgentReady: exposes a small business's hours, services and booking to AI agents via WebMCP.
-// <script src="/agentready.js" data-config="agentready.json" data-api="/api" [data-site="id"] defer></script>
+// On any site:   <script src="https://AGENTREADY-HOST/agentready.js" data-site="id" defer></script>  (config + API from the AgentReady host)
+// Self-hosted:    <script src="/agentready.js" data-config="agentready.json" data-api="/api" defer></script>
 (() => {
   const script = document.currentScript;
-  const configUrl = new URL(script?.dataset.config || 'agentready.json', location.href);
-  const api = script?.dataset.api || '/api';
+  const fromHost = script && new URL(script.src, location.href).origin !== location.origin;
+  const api = script?.dataset.api || (fromHost ? new URL('/api', script.src).href : '/api');
+  const configUrl = script?.dataset.site && !script.dataset.config
+    ? new URL(`${api}/config?site=${encodeURIComponent(script.dataset.site)}`, location.href)
+    : new URL(script?.dataset.config || 'agentready.json', location.href);
   // Which business the API should load: data-site, else the folder the config sits in (/salon/agentready.json → salon).
   const site = script?.dataset.site || configUrl.pathname.split('/').at(-2) || '';
   const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
