@@ -3,7 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GET } from './api/slots.js';
 import { POST } from './api/book.js';
-import { config, local } from './api/_lib.js';
+import { siteConfig, local as localTz } from './api/_lib.js';
+
+const config = siteConfig('barbershop');
+const local = (when) => localTz(when, config.timezone);
 
 const tomorrowOpen = () => {
   for (let i = 1; i < 8; i++) {
@@ -48,4 +51,15 @@ test('book validates, books once, refuses double booking', async () => {
   assert.equal((await book(ok)).status, 409);
   const after = await (await slots({ service: 'classic-cut', date: d.date })).json();
   assert.ok(!after.slots.some((x) => x.start === s[0].start));
+});
+
+test('each site gets its own services and calendar', async () => {
+  const salon = siteConfig('salon');
+  const d = [...Array(8)].map((_, i) => local(Date.now() + i * 864e5)).find((x) => salon.hours[x.day] && config.hours[x.day]);
+  assert.equal((await slots({ site: 'salon', service: 'gel-manicure', date: d.date })).status, 200);
+  assert.equal((await slots({ service: 'gel-manicure', date: d.date })).status, 400); // barbershop has no gel manicure
+  assert.equal((await slots({ site: 'nope', service: 'skin-fade', date: d.date })).status, 404);
+  const s = (await (await slots({ site: 'salon', service: 'brow-shape', date: d.date })).json()).slots.at(-1).start;
+  assert.equal((await book({ site: 'salon', service_id: 'brow-shape', start: s, name: 'Ana', email: 'ana@example.com' })).status, 200);
+  assert.equal((await book({ service_id: 'skin-fade', start: s, name: 'Ana', email: 'ana@example.com' })).status, 200); // same time, other business
 });

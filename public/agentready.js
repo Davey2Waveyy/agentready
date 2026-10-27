@@ -1,9 +1,11 @@
 // AgentReady: exposes a small business's hours, services and booking to AI agents via WebMCP.
-// <script src="/agentready.js" data-config="agentready.json" data-api="/api" defer></script>
+// <script src="/agentready.js" data-config="agentready.json" data-api="/api" [data-site="id"] defer></script>
 (() => {
   const script = document.currentScript;
   const configUrl = new URL(script?.dataset.config || 'agentready.json', location.href);
   const api = script?.dataset.api || '/api';
+  // Which business the API should load: data-site, else the folder the config sits in (/salon/agentready.json → salon).
+  const site = script?.dataset.site || configUrl.pathname.split('/').at(-2) || '';
   const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
   // Date parts of `when` in the business's timezone, so "open now" is right wherever the agent runs.
@@ -32,7 +34,7 @@
   }
 
   async function post(path, body) {
-    const res = await fetch(api + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(api + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ site, ...body }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { data });
     return data;
@@ -106,7 +108,7 @@
         annotations: { readOnlyHint: true },
         async execute({ service_id, date }) {
           if (!service(service_id)) return { error: 'unknown_service', next_action: `Use one of: ${serviceIds}` };
-          const res = await fetch(`${api}/slots?${new URLSearchParams({ service: service_id, date })}`);
+          const res = await fetch(`${api}/slots?${new URLSearchParams({ site, service: service_id, date })}`);
           const data = await res.json();
           if (!res.ok) return { error: data.error, next_action: 'Fix the input and try again.' };
           return { ...data, next_action: data.slots.length ? 'Offer these times; pass the chosen start to book_appointment.' : 'No times that day; try another date.' };

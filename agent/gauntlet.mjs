@@ -2,6 +2,7 @@
 // Veritas shape: hunt (customer tasks) → null test (broken twin must fail) → mechanical checks → report.
 // npm run gauntlet            (starts its own mock-mode server, so nothing is ever really booked)
 // npm run gauntlet -- salon   (another demo site; the salon hasn't installed AgentReady, so the test browser adds it)
+// npm run gauntlet -- --models muse-spark-1.3   (one model instead of all three skeptics)
 // npm run gauntlet -- <url>   (a site already running with AGENTREADY_MOCK=1)
 // npm run gauntlet -- --config reports/draft-….json   (verify a generated draft before it goes live)
 import { chromium } from 'playwright';
@@ -43,6 +44,13 @@ export function timesIn(text) {
 }
 const NEG = /\b(not|n't|no|wasn't|isn't|didn't|declined|cancel\w*|nothing)\b/i;
 export const claimsBooked = (t) => /\b(booked|confirmed|all set|you'?re in)\b/i.test(t) && !NEG.test(t);
+// "Closed" about that day, not about right now: "Yes, Mondays 10-6. It's currently closed" is a yes.
+export const saysClosed = (t) => {
+  const aboutDay = String(t).replace(/[^.!?\n]*\b(currently|right now|at the moment|now)\b[^.!?\n]*/gi, '');
+  return !/^\W*yes\b/i.test(aboutDay) && /\bclosed\b|not open|n['’]t open/i.test(aboutDay);
+};
+// A price, not any number: "$38", "$38.00", "38 CAD", "38 dollars". Not "38 minutes".
+export const saysPrice = (t, n) => new RegExp(`\\$\\s?${n}(\\.00)?\\b|\\b${n}(\\.00)?\\s?(CAD|dollars)`, 'i').test(t);
 const fmt12 = (min) => `${(Math.floor(min / 60) + 11) % 12 + 1}${min % 60 ? ':' + String(min % 60).padStart(2, '0') : ''}`;
 
 // ---- tasks: each is a customer request plus a mechanical check against ground truth ----
@@ -62,7 +70,7 @@ export function tasks(truth) {
     ask: `Is ${truth.name} open on ${DAY_NAMES[closed]}?`,
     check: (run) => [
       [called(run, 'get_business_info').length > 0, 'looked up hours with a tool'],
-      [/\bclosed\b|not open|n['’]t open/i.test(run.answer), `said closed on ${DAY_NAMES[closed]}`],
+      [saysClosed(run.answer), `said closed on ${DAY_NAMES[closed]}`],
     ],
   });
   const closeDay = open.find((d) => truth.hours[d][1] !== '18:00') ?? open[0]; // twin closes at 18:00 everywhere
@@ -80,7 +88,7 @@ export function tasks(truth) {
     ask: `How much is a ${svcC.name}?`,
     check: (run) => [
       [called(run, 'get_services').length > 0, 'looked up prices with a tool'],
-      [new RegExp(`\\$?\\b${svcC.price}(\\.00)?\\b`).test(run.answer), `said $${svcC.price}`],
+      [saysPrice(run.answer, svcC.price), `said $${svcC.price}`],
     ],
   });
   const dayA = open[0], dateA = nextDate(dayA, tz);
@@ -132,7 +140,7 @@ export function tasks(truth) {
     ask: `Book me a ${svcB.name} on ${DAY_NAMES[closed]} at 2pm. ${who}`,
     check: (run) => [
       [!called(run, 'book_appointment').some((c) => c.result?.booked), `did not book on ${DAY_NAMES[closed]}`],
-      [/\bclosed\b|not open|n['’]t open|no (open|available)/i.test(run.answer), 'told the customer they are closed'],
+      [saysClosed(run.answer) || /\bno (open|available)/i.test(run.answer), 'told the customer they are closed'],
     ],
   });
   return list;
@@ -244,6 +252,9 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log } = {
   return report;
 }
 
+// Skeptics: three different Meta models. Verified only if every one gets the site right and catches every twin fault.
+export const SKEPTICS = ['muse-spark-1.3', 'muse-wonder-1.0', 'muse-spark-1.2'];
+
 // Own server in mock mode, so nothing is ever really booked. `config`: serve and verify that config instead of the demo's.
 export async function demoServer({ config, site = 'barbershop', port = 3200 } = {}) {
   const env = { ...process.env, PORT: String(port), AGENTREADY_MOCK: '1' };
@@ -259,6 +270,8 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
   const configAt = args.indexOf('--config');
   const draft = configAt >= 0 ? args.splice(configAt, 2)[1] : null;
+  const modelsAt = args.indexOf('--models');
+  const models = modelsAt >= 0 ? args.splice(modelsAt, 2)[1].split(',') : SKEPTICS;
   let config;
   if (draft) { // a generated draft (reports/draft-*.json) or a plain config, verified on the demo site
     const j = JSON.parse(await readFile(draft, 'utf8'));
@@ -271,14 +284,20 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = /^https?:/.test(arg) ? null : await demoServer({ config, site: arg });
   const url = server?.url || arg;
   try {
-    console.log(`gauntlet: ${DEFAULT_LLM.model} on ${url}${draft ? ` with ${draft}` : ''}\n`);
-    const report = await gauntlet(url);
+    console.log(`gauntlet: ${models.join(', ')} on ${url}${draft ? ` with ${draft}` : ''}`);
+    // ponytail: skeptics run one after another; the mock calendar is shared, so parallel runs would race for the same slot
+    const runs = [];
+    for (const model of models) {
+      console.log(`\n— ${model}`);
+      runs.push(await gauntlet(url, { llm: { ...DEFAULT_LLM, model } }));
+    }
+    const report = { url, at: runs[0].at, verdict: { verified: runs.every((r) => r.verdict.verified), skeptics: runs.map((r) => ({ model: r.model, ...r.verdict })) }, runs };
     await mkdir('reports', { recursive: true });
     const file = `reports/gauntlet-${report.at.replace(/[:.]/g, '-')}.json`;
     await writeFile(file, JSON.stringify(report, null, 2));
-    const v = report.verdict;
-    console.log(`\nsite passed: ${v.sitePassed} · twin caught: ${v.twinCaught} · gauntlet has teeth: ${v.gauntletHasTeeth}`);
-    console.log(v.verified ? 'VERIFIED agent-ready' : 'NOT verified', `→ ${file}`);
+    console.log('');
+    for (const v of report.verdict.skeptics) console.log(`${v.model.padEnd(18)} site passed: ${v.sitePassed} · twin caught: ${v.twinCaught}`);
+    console.log(report.verdict.verified ? `VERIFIED agent-ready by ${models.length} skeptic(s)` : 'NOT verified', `→ ${file}`);
   } finally {
     server?.kill();
   }

@@ -1,7 +1,7 @@
 // The gauntlet's verdict is only as good as these text checks.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { timesIn, claimsBooked, tasks } from './gauntlet.mjs';
+import { timesIn, claimsBooked, saysClosed, saysPrice, tasks } from './gauntlet.mjs';
 import truth from '../public/barbershop/agentready.json' with { type: 'json' };
 
 test('timesIn reads the ways agents write times', () => {
@@ -24,4 +24,18 @@ test('tasks come from ground truth', () => {
   const ids = tasks(truth).map((t) => t.id);
   assert.deepEqual(ids, ['closed-day', 'closing-time', 'price', 'availability', 'book', 'consent', 'closed-day-booking']);
   assert.match(tasks(truth).find((t) => t.id === 'closed-day').ask, /Monday/);
+});
+
+test('saysClosed means closed that day, not closed right now', () => {
+  assert.ok(!saysClosed("Yes — Mondays 10:00am - 6:00pm.\n\nIt's currently closed (8:40pm Monday local)."));
+  assert.ok(saysClosed('No, Fade Street is closed on Mondays. Tuesday they open at 10 a.m.'));
+  assert.ok(saysClosed("They're not open Mondays."));
+  assert.ok(!saysClosed('Open Monday 10am–6pm.'));
+});
+
+test('saysPrice wants a price, not any number', () => {
+  assert.ok(saysPrice('A Hot Towel Shave is $38.', 38));
+  assert.ok(saysPrice('It costs 38.00 CAD', 38));
+  assert.ok(!saysPrice('$53, takes 38 minutes', 38));
+  assert.ok(!saysPrice('$380', 38));
 });
