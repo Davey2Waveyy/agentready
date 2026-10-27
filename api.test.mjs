@@ -49,6 +49,9 @@ test('book validates, books once, refuses double booking', async () => {
   assert.equal(first.status, 200);
   assert.match((await first.json()).uid, /^mock-/);
   assert.equal((await book(ok)).status, 409);
+  const monday = [...Array(8)].map((_, i) => local(Date.now() + (i + 1) * 864e5)).find((x) => x.day === 'mon');
+  const closedStart = new Date(Date.parse(`${monday.date}T18:00:00Z`)).toISOString(); // 2pm Toronto, closed all day
+  assert.equal((await book({ ...ok, start: closedStart })).status, 409);
   const after = await (await slots({ service: 'classic-cut', date: d.date })).json();
   assert.ok(!after.slots.some((x) => x.start === s[0].start));
 });
@@ -59,7 +62,9 @@ test('each site gets its own services and calendar', async () => {
   assert.equal((await slots({ site: 'salon', service: 'gel-manicure', date: d.date })).status, 200);
   assert.equal((await slots({ service: 'gel-manicure', date: d.date })).status, 400); // barbershop has no gel manicure
   assert.equal((await slots({ site: 'nope', service: 'skin-fade', date: d.date })).status, 404);
-  const s = (await (await slots({ site: 'salon', service: 'brow-shape', date: d.date })).json()).slots.at(-1).start;
+  const open = async (q) => (await (await slots({ ...q, date: d.date })).json()).slots.map((x) => x.start);
+  const barber = await open({ service: 'skin-fade' });
+  const s = (await open({ site: 'salon', service: 'brow-shape' })).findLast((x) => barber.includes(x)); // open at both
   assert.equal((await book({ site: 'salon', service_id: 'brow-shape', start: s, name: 'Ana', email: 'ana@example.com' })).status, 200);
   assert.equal((await book({ service_id: 'skin-fade', start: s, name: 'Ana', email: 'ana@example.com' })).status, 200); // same time, other business
 });

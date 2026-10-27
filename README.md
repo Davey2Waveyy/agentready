@@ -39,6 +39,7 @@ npm test
 
 ```bash
 npm run generate                # the demo barbershop, scored against its hand-written config
+npm run generate -- salon       # the messy demo salon: prices only in a photo of its chalkboard menu, hours in a paragraph
 npm run generate -- <url>       # any site
 ```
 
@@ -50,15 +51,16 @@ Muse Spark reads up to 4 pages of the site (text, JSON-LD, booking links and a f
 npm run gauntlet
 ```
 
-A Muse Spark agent runs 7 customer tasks (hours, prices, live availability, booking, declined booking, booking on a closed day) against the site, and every answer is checked mechanically against the owner's config and the live booking system. Then it runs the same tasks against a **broken twin** (stale prices and hours, booking backend down, consent dialog auto-approving). The site is only "verified" if it passes and the twin is caught on every fault. Runs in mock mode, so nothing is really booked. Report goes to `reports/`.
+Three different Meta models (`muse-spark-1.3`, `muse-wonder-1.0`, `muse-spark-1.2`) act as skeptics. Each runs 7 customer tasks (hours, prices, live availability, booking, declined booking, booking on a closed day) against the site, and every answer is checked mechanically against the owner's config and the live booking system. Then it runs the same tasks against a **broken twin** (stale prices and hours, booking backend down, consent dialog auto-approving). The site is only "verified" if every skeptic passes it and catches the twin on every fault. `--models muse-spark-1.3` runs one model; `npm run gauntlet -- salon` tests the salon. Runs in mock mode, so nothing is really booked. Report goes to `reports/`.
 
-To verify a generated draft before it goes live: `npm run gauntlet -- --config reports/draft-….json`.
+To verify a generated draft before it goes live: `npm run gauntlet -- --config reports/draft-….json`. If the site hasn't installed AgentReady, the test browser adds the script tag itself, so nothing on the owner's site changes until they approve.
 
 ## Layout
 
 - `public/agentready.js` — the drop-in script (no build step)
-- `public/barbershop/` — demo business site + its config
-- `api/slots.js`, `api/book.js` — Vercel functions proxying Cal.com API v2
+- `public/barbershop/` — demo business site with AgentReady installed, + its config
+- `public/salon/` — second demo business, not installed: menu only as an image, hours in prose
+- `api/slots.js`, `api/book.js` — Vercel functions proxying Cal.com API v2, one config per business (`site`)
 - `agent/` — Muse Spark agent runner, config generator, verification gauntlet
 - `dev.mjs` — local server that mimics Vercel
 

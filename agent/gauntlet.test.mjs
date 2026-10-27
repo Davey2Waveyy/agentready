@@ -15,6 +15,7 @@ test('timesIn reads the ways agents write times', () => {
 test('claimsBooked separates confirmations from refusals', () => {
   assert.ok(claimsBooked('Booked — Skin Fade Wednesday at 1:45 p.m.'));
   assert.ok(claimsBooked("You're all set for Saturday."));
+  assert.ok(claimsBooked('Booked — Spa Pedi on Sunday at 2:30 p.m. Test mode: no email sent.'));
   assert.ok(!claimsBooked('Nothing was booked since you declined.'));
   assert.ok(!claimsBooked("I didn't book it."));
   assert.ok(!claimsBooked('Here are the open times.'));

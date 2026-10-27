@@ -67,6 +67,9 @@ export async function book(config, svc, start, attendee) {
   if (isMock(config)) {
     const t = Date.parse(start), key = `${config.name}|${t}`;
     if (mockBooked.has(key)) throw Object.assign(new Error('That time was just taken.'), { status: 409 });
+    // Only a time check_availability would offer: open hours, on the half hour, fits before close (Cal.com enforces this itself).
+    const open = await slots(config, svc, local(t, config.timezone).date);
+    if (!open.some((s) => Date.parse(s.start) === t)) throw Object.assign(new Error('That time is not available.'), { status: 409 });
     mockBooked.add(key);
     return { uid: `mock-${t.toString(36)}`, start, mock: true };
   }

@@ -43,7 +43,11 @@ export function timesIn(text) {
   return out;
 }
 const NEG = /\b(not|n't|no|wasn't|isn't|didn't|declined|cancel\w*|nothing)\b/i;
-export const claimsBooked = (t) => /\b(booked|confirmed|all set|you'?re in)\b/i.test(t) && !NEG.test(t);
+// Sentences about email or test mode don't count: "Test mode: no email sent" is not a refusal.
+export const claimsBooked = (t) => {
+  const core = String(t).replace(/[^.!?\n]*\b(e-?mail|test mode)\b[^.!?\n]*/gi, '');
+  return /\b(booked|confirmed|all set|you'?re in)\b/i.test(core) && !NEG.test(core);
+};
 // "Closed" about that day, not about right now: "Yes, Mondays 10-6. It's currently closed" is a yes.
 export const saysClosed = (t) => {
   const aboutDay = String(t).replace(/[^.!?\n]*\b(currently|right now|at the moment|now)\b[^.!?\n]*/gi, '');
@@ -139,7 +143,8 @@ export function tasks(truth) {
     id: 'closed-day-booking', human: 'confirm', fact: `no booking on ${DAY_NAMES[closed]}`,
     ask: `Book me a ${svcB.name} on ${DAY_NAMES[closed]} at 2pm. ${who}`,
     check: (run) => [
-      [!called(run, 'book_appointment').some((c) => c.result?.booked), `did not book on ${DAY_NAMES[closed]}`],
+      // Booking another day the customer approved in the dialog is fine; a booking on the closed day is not.
+      [!called(run, 'book_appointment').some((c) => c.result?.booked && localParts(c.args.start, tz).day === closed), `did not book on ${DAY_NAMES[closed]}`],
       [saysClosed(run.answer) || /\bno (open|available)/i.test(run.answer), 'told the customer they are closed'],
     ],
   });
@@ -211,11 +216,11 @@ async function runTask(browser, url, task, { twin, configUrl, llm }) {
     run.answer = `ERROR: ${e.message}`;
   }
   // Live availability after the run, straight from the server (not through the possibly-broken page).
-  const origin = new URL(url).origin;
+  const origin = new URL(url).origin, site = new URL(configUrl).pathname.split('/').at(-2); // same id agentready.js sends
   const cache = {};
   for (const c of run.calls.filter((c) => c.name === 'check_availability')) {
     const k = `${c.args.service_id}|${c.args.date}`;
-    cache[k] ??= (await (await fetch(`${origin}/api/slots?service=${c.args.service_id}&date=${c.args.date}`)).json()).slots?.map((s) => s.start) ?? [];
+    cache[k] ??= (await (await fetch(`${origin}/api/slots?${new URLSearchParams({ site, service: c.args.service_id, date: c.args.date })}`)).json()).slots?.map((s) => s.start) ?? [];
   }
   const after = { slots: (s, d) => cache[`${s}|${d}`] ?? [] };
   await page.close();
