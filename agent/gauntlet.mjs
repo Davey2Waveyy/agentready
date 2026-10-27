@@ -2,9 +2,11 @@
 // Veritas shape: hunt (customer tasks) → null test (broken twin must fail) → mechanical checks → report.
 // npm run gauntlet            (starts its own mock-mode server, so nothing is ever really booked)
 // npm run gauntlet -- <url>   (a site already running with AGENTREADY_MOCK=1)
+// npm run gauntlet -- --config reports/draft-….json   (verify a generated draft before it goes live)
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { waitForTools, listTools, turn, systemPrompt, DEFAULT_LLM } from './run.mjs';
 
@@ -229,17 +231,32 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log } = {
   return report;
 }
 
+// Own server in mock mode, so nothing is ever really booked. `config`: serve and verify that config instead of the demo's.
+export async function demoServer({ config, port = 3200 } = {}) {
+  const env = { ...process.env, PORT: String(port), AGENTREADY_MOCK: '1' };
+  if (config) env.AGENTREADY_CONFIG = config;
+  const proc = spawn(process.execPath, ['dev.mjs'], { env, stdio: 'ignore' });
+  const url = `http://localhost:${port}/barbershop/`;
+  for (let i = 0; i < 50 && !(await fetch(url).then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 100));
+  return { url, kill: () => proc.kill() };
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!DEFAULT_LLM.apiKey) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
-  let url = process.argv[2], server;
-  if (!url) {
-    // Own server in mock mode: the gauntlet books for real otherwise.
-    server = spawn(process.execPath, ['dev.mjs'], { env: { ...process.env, PORT: '3200', AGENTREADY_MOCK: '1' }, stdio: 'ignore' });
-    url = 'http://localhost:3200/barbershop/';
-    for (let i = 0; i < 50 && !(await fetch(url).then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 100));
+  const args = process.argv.slice(2);
+  const configAt = args.indexOf('--config');
+  const draft = configAt >= 0 ? args.splice(configAt, 2)[1] : null;
+  let config;
+  if (draft) { // a generated draft (reports/draft-*.json) or a plain config, verified on the demo site
+    const j = JSON.parse(await readFile(draft, 'utf8'));
+    config = resolve('reports/.verify-config.json');
+    await mkdir('reports', { recursive: true });
+    await writeFile(config, JSON.stringify(j.config ?? j));
   }
+  const server = args[0] ? null : await demoServer({ config });
+  const url = args[0] || server.url;
   try {
-    console.log(`gauntlet: ${DEFAULT_LLM.model} on ${url}\n`);
+    console.log(`gauntlet: ${DEFAULT_LLM.model} on ${url}${draft ? ` with ${draft}` : ''}\n`);
     const report = await gauntlet(url);
     await mkdir('reports', { recursive: true });
     const file = `reports/gauntlet-${report.at.replace(/[:.]/g, '-')}.json`;

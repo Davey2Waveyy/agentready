@@ -12,7 +12,8 @@
     "dev": "node --env-file-if-exists=.env dev.mjs",
     "test": "AGENTREADY_MOCK=1 node --test",
     "agent": "node --env-file-if-exists=.env agent/run.mjs",
-    "gauntlet": "node --env-file-if-exists=.env agent/gauntlet.mjs"
+    "gauntlet": "node --env-file-if-exists=.env agent/gauntlet.mjs",
+    "generate": "node --env-file-if-exists=.env agent/generate.mjs"
   },
   "devDependencies": {
     "playwright": "^1.64.1"

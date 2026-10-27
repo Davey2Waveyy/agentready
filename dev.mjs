@@ -22,8 +22,11 @@ createServer(async (req, res) => {
   }
   let path = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, '');
   if (path.endsWith('/')) path += 'index.html';
+  // AGENTREADY_CONFIG: serve a generated draft as the site's config, to verify it before it goes live
+  if (process.env.AGENTREADY_CONFIG && path.endsWith('/agentready.json')) path = process.env.AGENTREADY_CONFIG;
+  else path = join('public', path);
   try {
-    const file = await readFile(join('public', path));
+    const file = await readFile(path);
     res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'application/octet-stream' }).end(file);
   } catch {
     res.writeHead(404).end('Not found');

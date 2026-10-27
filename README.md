@@ -35,6 +35,15 @@ To see the tools as an agent does, start Chrome with `--enable-features=WebMCPTe
 npm test
 ```
 
+### Generate a config from a site
+
+```bash
+npm run generate                # the demo barbershop, scored against its hand-written config
+npm run generate -- <url>       # any site
+```
+
+Muse Spark reads up to 4 pages of the site (text, JSON-LD, booking links and a full-page screenshot of each, with AgentReady itself blocked so it sees the site as it was) and drafts `agentready.json`. Every value has to come from the site: anything it doesn't state is left empty and becomes a question for the owner, and each field cites where it was found. Format errors get one repair round. The draft goes to `reports/draft-*.json`; it isn't live until the owner approves it.
+
 ### Verification gauntlet
 
 ```bash
@@ -43,11 +52,14 @@ npm run gauntlet
 
 A Muse Spark agent runs 7 customer tasks (hours, prices, live availability, booking, declined booking, booking on a closed day) against the site, and every answer is checked mechanically against the owner's config and the live booking system. Then it runs the same tasks against a **broken twin** (stale prices and hours, booking backend down, consent dialog auto-approving). The site is only "verified" if it passes and the twin is caught on every fault. Runs in mock mode, so nothing is really booked. Report goes to `reports/`.
 
+To verify a generated draft before it goes live: `npm run gauntlet -- --config reports/draft-….json`.
+
 ## Layout
 
 - `public/agentready.js` — the drop-in script (no build step)
 - `public/barbershop/` — demo business site + its config
 - `api/slots.js`, `api/book.js` — Vercel functions proxying Cal.com API v2
+- `agent/` — Muse Spark agent runner, config generator, verification gauntlet
 - `dev.mjs` — local server that mimics Vercel
 
 ## Prior work

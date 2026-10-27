@@ -1,6 +1,10 @@
 // Shared by the API routes. Files starting with _ are not deployed as routes on Vercel.
 // ponytail: single tenant (the demo barbershop); load config per host/site id when there is a second business
-import config from '../public/barbershop/agentready.json' with { type: 'json' };
+import demo from '../public/barbershop/agentready.json' with { type: 'json' };
+import { readFileSync } from 'node:fs';
+
+// AGENTREADY_CONFIG: a generated draft under verification (local gauntlet only; dev.mjs serves the same file)
+const config = process.env.AGENTREADY_CONFIG ? JSON.parse(readFileSync(process.env.AGENTREADY_CONFIG, 'utf8')) : demo;
 
 export { config };
 // Fake slots + bookings (flagged mock:true) with no Cal.com username, or AGENTREADY_MOCK=1 (tests: never book for real)

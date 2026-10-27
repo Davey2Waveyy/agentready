@@ -1,0 +1,176 @@
+// Generate: Muse Spark reads a business website (page text + screenshots) and drafts its agentready.json.
+// The draft is not live until the owner reviews it; `questions` lists what the site didn't say.
+// npm run generate                 (the demo barbershop, scored against its hand-written config)
+// npm run generate -- <url>        (any site)
+import { chromium } from 'playwright';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
+import { DEFAULT_LLM } from './run.mjs';
+import { demoServer } from './gauntlet.mjs';
+
+const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const BOOKING = /cal\.com|calendly\.com|fresha\.com|booksy\.com|squareup\.com\/appointments|vagaro\.com|setmore\.com|acuityscheduling\.com|opentable\.com|resy\.com/i;
+const USEFUL = /servic|price|menu|rate|hour|book|appoint|contact|visit|about|location/i;
+
+// Up to maxPages same-origin pages, most useful links first. Text, JSON-LD, booking links and a screenshot of each.
+export async function crawl(url, { maxPages = 4 } = {}) {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1100, height: 800 } });
+  await page.route(/agentready\.(js|json)/, (r) => r.abort()); // read the site as it is before AgentReady is installed
+  const pages = [], seen = new Set(), queue = [url];
+  try {
+    while (queue.length && pages.length < maxPages) {
+      const u = queue.shift().split('#')[0];
+      if (seen.has(u)) continue;
+      seen.add(u);
+      if (!(await page.goto(u).catch(() => null))?.ok()) continue;
+      await page.waitForTimeout(500); // late JS widgets
+      const d = await page.evaluate(() => ({
+        title: document.title,
+        text: document.body.innerText,
+        jsonld: [...document.querySelectorAll('script[type="application/ld+json"]')].map((s) => s.textContent.trim()),
+        links: [...document.links].map((a) => ({ href: a.href, text: a.textContent.trim().slice(0, 60) })),
+      }));
+      // ponytail: screenshot capped at 6000px tall; tile it if long menus get cut off
+      const height = Math.min(await page.evaluate(() => document.documentElement.scrollHeight), 6000);
+      const shot = (await page.screenshot({ type: 'jpeg', quality: 55, fullPage: true, clip: { x: 0, y: 0, width: 1100, height } })).toString('base64');
+      pages.push({ url: u, title: d.title, text: d.text.slice(0, 12_000), jsonld: d.jsonld, booking: d.links.filter((l) => BOOKING.test(l.href)), shot });
+      const origin = new URL(url).origin;
+      queue.push(...d.links.filter((l) => l.href.startsWith(origin) && USEFUL.test(l.href + ' ' + l.text)).map((l) => l.href));
+    }
+  } finally {
+    await browser.close();
+  }
+  return pages;
+}
+
+const PROMPT = `You turn a small business's website into a config file that AI agents use to answer customers and book appointments.
+Customers will rely on it, so every value must come from the pages or screenshots below. Never guess.
+Return JSON: {"config": {...}, "evidence": {"<field path>": "where you saw it, quoting the site"}, "questions": ["what the owner must fill in or confirm"]}
+
+config shape:
+{
+  "name": string,
+  "type": schema.org LocalBusiness subtype, e.g. "HairSalon", "Restaurant", "DaySpa",
+  "description": one sentence in the business's own words,
+  "timezone": IANA zone of the address, e.g. "America/Vancouver",
+  "phone": "+1-604-555-0100" style, or null,
+  "address": {"street", "city", "region", "postal", "country" (ISO 3166 alpha-2)} or null,
+  "hours": {"mon": ["HH:MM", "HH:MM"] 24-hour open and close, or null when closed, ... for all of mon tue wed thu fri sat sun},
+  "services": [{"id": lowercase-kebab-case from the name, "name": as written, "minutes": integer duration or null, "price": number without symbol or null, "currency": ISO 4217}],
+  "booking": {"provider": "calcom" | "calendly" | other | null, "username": account name from the booking link or "", "url": booking page or null}
+}
+Rules:
+- A value the site doesn't state is null, with a question for the owner. Hours that aren't listed are a question, not "closed".
+- "From $30" or "$30+" is price 30 with a question confirming it.
+- If a cal.com link points at a specific service (cal.com/<username>/<slug>), add "calEventSlug": "<slug>" to that service.`;
+
+function pagesToContent(pages) {
+  return pages.flatMap((p, i) => [
+    { type: 'text', text: `PAGE ${i + 1}: ${p.url}\nTitle: ${p.title}\n${p.jsonld.length ? `JSON-LD:\n${p.jsonld.join('\n')}\n` : ''}${p.booking.length ? `Booking links: ${p.booking.map((l) => `${l.text} → ${l.href}`).join('; ')}\n` : ''}Text:\n${p.text}` },
+    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${p.shot}` } },
+  ]);
+}
+
+async function ask(messages, { baseUrl, model, apiKey }) {
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model, messages, response_format: { type: 'json_object' } }),
+  });
+  if (!res.ok) throw new Error(`${model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const msg = (await res.json()).choices[0].message;
+  messages.push(msg);
+  return JSON.parse(msg.content);
+}
+
+// Format errors block installing the config; missing values are for the owner to fill in.
+export function validate(c) {
+  const errors = [], missing = [];
+  const req = (ok, msg) => ok || errors.push(msg);
+  req(typeof c?.name === 'string' && c.name.trim(), 'name: required');
+  try { new Intl.DateTimeFormat('en', { timeZone: c.timezone }); req(c.timezone, 'timezone: required'); } catch { errors.push(`timezone: "${c.timezone}" is not an IANA zone`); }
+  for (const d of DAYS) {
+    const h = c.hours?.[d];
+    if (h === undefined) errors.push(`hours.${d}: missing (use null if closed)`);
+    else if (h !== null) req(Array.isArray(h) && h.length === 2 && h.every((t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)) && h[0] < h[1], `hours.${d}: must be ["HH:MM","HH:MM"], open before close`);
+  }
+  if (!Array.isArray(c.services) || !c.services.length) errors.push('services: at least one');
+  const ids = new Set();
+  (c.services || []).forEach((s, i) => {
+    req(/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s.id) && !ids.has(s.id), `services[${i}].id: unique lowercase-kebab-case`);
+    ids.add(s.id);
+    req(typeof s.name === 'string' && s.name, `services[${i}].name: required`);
+    req(/^[A-Z]{3}$/.test(s.currency), `services[${i}].currency: ISO 4217 code`);
+    if (s.minutes == null) missing.push(`services[${i}].minutes (${s.name})`);
+    else req(Number.isInteger(s.minutes) && s.minutes > 0, `services[${i}].minutes: positive integer`);
+    if (s.price == null) missing.push(`services[${i}].price (${s.name})`);
+    else req(typeof s.price === 'number' && s.price >= 0, `services[${i}].price: number`);
+  });
+  if (!c.phone) missing.push('phone');
+  if (!c.address) missing.push('address');
+  req(c.booking && typeof c.booking === 'object', 'booking: required (provider null if none)');
+  return { errors, missing };
+}
+
+// Score a draft against a known-good config, field by field. Booking is skipped: the owner connects it.
+export function compare(got, want) {
+  const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const digits = (s) => String(s ?? '').replace(/\D/g, '').slice(-10);
+  const out = [];
+  const check = (field, g, w, ok = norm(g) === norm(w)) => out.push({ field, ok, got: g, want: w });
+  check('name', got.name, want.name, norm(want.name).includes(norm(got.name)) && norm(got.name).length > 3);
+  check('timezone', got.timezone, want.timezone);
+  check('phone', got.phone, want.phone, digits(got.phone) === digits(want.phone));
+  for (const k of ['street', 'city', 'region', 'postal']) check(`address.${k}`, got.address?.[k], want.address[k]);
+  for (const d of DAYS) check(`hours.${d}`, JSON.stringify(got.hours?.[d]), JSON.stringify(want.hours[d]));
+  for (const w of want.services) {
+    const g = got.services?.find((s) => norm(s.name) === norm(w.name));
+    check(`service ${w.name}`, g?.name, w.name, !!g);
+    if (g) for (const k of ['minutes', 'price', 'currency']) check(`service ${w.name}.${k}`, g[k], w[k], g[k] === w[k]);
+  }
+  for (const g of got.services || []) if (!want.services.some((w) => norm(w.name) === norm(g.name))) check(`extra service ${g.name}`, g.name, null, false);
+  return out;
+}
+
+export async function generate(url, { llm = DEFAULT_LLM, log = console.log } = {}) {
+  const pages = await crawl(url);
+  if (!pages.length) throw new Error(`could not load ${url}`);
+  log(`read ${pages.length} page(s): ${pages.map((p) => p.url).join(', ')}`);
+  const messages = [{ role: 'system', content: PROMPT }, { role: 'user', content: pagesToContent(pages) }];
+  let draft = await ask(messages, llm);
+  let { errors, missing } = validate(draft.config);
+  if (errors.length) { // one repair round for format slips
+    log(`fixing: ${errors.join('; ')}`);
+    messages.push({ role: 'user', content: `The config has format errors. Return the full corrected JSON.\n${errors.join('\n')}` });
+    draft = await ask(messages, llm);
+    ({ errors, missing } = validate(draft.config));
+  }
+  return { url, model: llm.model, at: new Date().toISOString(), pages: pages.map((p) => p.url), ...draft, errors, missing };
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (!DEFAULT_LLM.apiKey) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
+  const server = process.argv[2] ? null : await demoServer();
+  const url = process.argv[2] || server.url;
+  try {
+    console.log(`generate: ${DEFAULT_LLM.model} reading ${url}\n`);
+    const draft = await generate(url);
+    if (server) { // the demo site has a hand-written config to score against
+      const truth = await (await fetch(new URL('agentready.json', url))).json();
+      draft.score = compare(draft.config, truth);
+      for (const c of draft.score.filter((c) => !c.ok)) console.log(`  ✗ ${c.field}: got ${JSON.stringify(c.got)}, want ${JSON.stringify(c.want)}`);
+      console.log(`matches hand-written config: ${draft.score.filter((c) => c.ok).length}/${draft.score.length} fields`);
+    }
+    console.log(`\nservices: ${draft.config.services.map((s) => `${s.name} ${s.minutes ?? '?'}min ${s.price ?? '?'}`).join(' · ')}`);
+    console.log(`format errors: ${draft.errors.length ? draft.errors.join('; ') : 'none'}`);
+    console.log(`owner to fill in: ${draft.missing.join(', ') || 'nothing'}`);
+    for (const q of draft.questions || []) console.log(`  ? ${q}`);
+    await mkdir('reports', { recursive: true });
+    const file = `reports/draft-${new URL(url).hostname}-${draft.at.replace(/[:.]/g, '-')}.json`;
+    await writeFile(file, JSON.stringify(draft, null, 2));
+    console.log(`→ ${file}`);
+  } finally {
+    server?.kill();
+  }
+}
