@@ -6,9 +6,7 @@
 // npm run gauntlet -- <url>   (a site already running with AGENTREADY_MOCK=1)
 // npm run gauntlet -- --config reports/draft-….json   (verify a generated draft before it goes live)
 import { chromium } from 'playwright';
-import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { waitForTools, listTools, turn, systemPrompt, DEFAULT_LLM } from './run.mjs';
 
@@ -160,12 +158,12 @@ export const FAULTS = [
   { id: 'booking-down', what: 'booking backend returns errors', caughtBy: ['book'] },
   { id: 'no-consent-gate', what: 'confirm dialog auto-approves without the customer', caughtBy: ['consent'] },
 ];
-async function breakTwin(page, configUrl) {
-  await page.route(configUrl, async (route) => {
-    const c = await (await route.fetch()).json();
+async function breakTwin(page, truth) {
+  await page.route(/\/agentready\.json(\?|$)/, (route) => {
+    const c = structuredClone(truth);
     for (const s of c.services) s.price += 15;
     for (const d of DAYS) c.hours[d] = c.hours[d] ? [c.hours[d][0], '18:00'] : ['10:00', '18:00'];
-    await route.fulfill({ json: c });
+    return route.fulfill({ json: c });
   });
   await page.route('**/api/book', (route) => route.fulfill({ status: 500, json: { error: 'internal_error' } }));
   await page.addInitScript(() => {
@@ -198,9 +196,17 @@ function actAsHuman(page, mode, dialogs) {
   })();
 }
 
-async function runTask(browser, url, task, { twin, configUrl, llm }) {
+// A draft under verification: the test browser gets the draft config, and API calls name the draft's site id.
+async function serveDraft(page, config, site) {
+  await page.route(/\/agentready\.json(\?|$)/, (r) => r.fulfill({ json: config }));
+  await page.route(/\/api\/slots\?/, (r) => { const u = new URL(r.request().url()); u.searchParams.set('site', site); return r.continue({ url: u.href }); });
+  await page.route(/\/api\/book$/, (r) => r.continue({ postData: JSON.stringify({ ...r.request().postDataJSON(), site }) }));
+}
+
+async function runTask(browser, url, task, { twin, truth, site, draft, llm }) {
   const page = await browser.newPage();
-  if (twin) await breakTwin(page, configUrl);
+  if (draft) await serveDraft(page, truth, site);
+  if (twin) await breakTwin(page, truth); // registered last, so its routes win
   await page.addInitScript(installAgentReady);
   await page.goto(url);
   await waitForTools(page);
@@ -219,7 +225,7 @@ async function runTask(browser, url, task, { twin, configUrl, llm }) {
     run.answer = `ERROR: ${e.message}`;
   }
   // Live availability after the run, straight from the server (not through the possibly-broken page).
-  const origin = new URL(url).origin, site = new URL(configUrl).pathname.split('/').at(-2); // same id agentready.js sends
+  const origin = new URL(url).origin;
   const cache = {};
   for (const c of run.calls.filter((c) => c.name === 'check_availability')) {
     const k = `${c.args.service_id}|${c.args.date}`;
@@ -231,16 +237,21 @@ async function runTask(browser, url, task, { twin, configUrl, llm }) {
   return { id: task.id, pass: checks.every((c) => c.ok), checks, answer: run.answer, calls: run.calls.map((c) => c.name), dialogs: run.dialogs.length };
 }
 
-export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log } = {}) {
-  const configUrl = new URL('agentready.json', url).href; // ponytail: assumes config sits next to the page
-  const truth = await (await fetch(configUrl)).json(); // ground truth = the owner-approved config
+// `config` + `site`: verify a draft (registered with addDraft) instead of the config the site serves.
+export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log, config, site, onTasks = () => {}, onRunning = () => {}, onResult = () => {} } = {}) {
+  const configUrl = new URL('agentready.json', url); // ponytail: assumes config sits next to the page
+  const truth = config ?? await (await fetch(configUrl)).json(); // ground truth = the owner-approved config
+  site ??= configUrl.pathname.split('/').at(-2); // same id agentready.js sends
   const list = tasks(truth);
+  onTasks(list);
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-features=WebMCPTesting'] });
   const report = { url, model: llm.model, at: new Date().toISOString(), site: [], twin: [] };
   try {
     for (const [side, twin] of [['site', false], ['twin', true]]) {
       for (const task of list) {
-        const r = await runTask(browser, url, task, { twin, configUrl, llm });
+        onRunning(side, task.id);
+        const r = await runTask(browser, url, task, { twin, truth, site, draft: !!config, llm });
+        onResult(side, r);
         report[side].push(r);
         log(`${side === 'site' ? 'site' : 'twin'}  ${r.pass ? 'PASS' : 'FAIL'}  ${task.id.padEnd(19)} ${r.checks.filter((c) => !c.ok).map((c) => '✗ ' + c.label).join('; ')}`);
       }
@@ -263,41 +274,36 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log } = {
 // Skeptics: three different Meta models. Verified only if every one gets the site right and catches every twin fault.
 export const SKEPTICS = ['muse-spark-1.3', 'muse-wonder-1.0', 'muse-spark-1.2'];
 
-// Own server in mock mode, so nothing is ever really booked. `config`: serve and verify that config instead of the demo's.
-export async function demoServer({ config, site = 'barbershop', port = 3200 } = {}) {
-  const env = { ...process.env, PORT: String(port), AGENTREADY_MOCK: '1' };
-  if (config) env.AGENTREADY_CONFIG = config;
-  const proc = spawn(process.execPath, ['dev.mjs'], { env, stdio: 'ignore' });
-  const url = `http://localhost:${port}/${site}/`;
-  for (let i = 0; i < 50 && !(await fetch(url).then((r) => r.ok).catch(() => false)); i++) await new Promise((r) => setTimeout(r, 100));
-  return { url, kill: () => proc.kill() };
+// The app server in this process, mock mode, so nothing is ever really booked.
+export async function demoServer({ site = 'barbershop', port = 3200 } = {}) {
+  process.env.AGENTREADY_MOCK = '1';
+  const { server } = await import('../dev.mjs');
+  await new Promise((ok) => server.listen(port, ok));
+  return { url: `http://localhost:${port}/${site}/`, kill: () => { server.closeAllConnections(); server.close(); } };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!DEFAULT_LLM.apiKey) throw new Error('Set MODEL_API_KEY in .env (Meta Model API key).');
   const args = process.argv.slice(2);
   const configAt = args.indexOf('--config');
-  const draft = configAt >= 0 ? args.splice(configAt, 2)[1] : null;
+  const draftFile = configAt >= 0 ? args.splice(configAt, 2)[1] : null;
   const modelsAt = args.indexOf('--models');
   const models = modelsAt >= 0 ? args.splice(modelsAt, 2)[1].split(',') : SKEPTICS;
-  let config;
-  if (draft) { // a generated draft (reports/draft-*.json) or a plain config, verified on the demo site
-    const j = JSON.parse(await readFile(draft, 'utf8'));
-    config = resolve('reports/.verify-config.json');
-    await mkdir('reports', { recursive: true });
-    await writeFile(config, JSON.stringify(j.config ?? j));
-  }
-  // A demo site by name (default: the site the draft was generated from, else barbershop), or a URL already running.
-  const arg = args[0] || (draft && JSON.parse(await readFile(draft, 'utf8')).url?.match(/localhost:\d+\/([^/]+)\//)?.[1]) || 'barbershop';
-  const server = /^https?:/.test(arg) ? null : await demoServer({ config, site: arg });
+  // A generated draft (reports/draft-*.json) or a plain config, verified on the demo site it came from.
+  const draft = draftFile && JSON.parse(await readFile(draftFile, 'utf8'));
+  const config = draft && (draft.config ?? draft);
+  const arg = args[0] || draft?.url?.match(/localhost:\d+\/([^/]+)\//)?.[1] || 'barbershop';
+  if (config && /^https?:/.test(arg)) throw new Error('--config verifies on a demo site (barbershop, salon); use the app for other URLs');
+  const server = /^https?:/.test(arg) ? null : await demoServer({ site: arg });
   const url = server?.url || arg;
+  const site = config && (await import('../api/_lib.js')).addDraft(config);
   try {
-    console.log(`gauntlet: ${models.join(', ')} on ${url}${draft ? ` with ${draft}` : ''}`);
+    console.log(`gauntlet: ${models.join(', ')} on ${url}${draftFile ? ` with ${draftFile}` : ''}`);
     // ponytail: skeptics run one after another; the mock calendar is shared, so parallel runs would race for the same slot
     const runs = [];
     for (const model of models) {
       console.log(`\n— ${model}`);
-      runs.push(await gauntlet(url, { llm: { ...DEFAULT_LLM, model } }));
+      runs.push(await gauntlet(url, { llm: { ...DEFAULT_LLM, model }, config, site }));
     }
     const report = { url, at: runs[0].at, verdict: { verified: runs.every((r) => r.verdict.verified), skeptics: runs.map((r) => ({ model: r.model, ...r.verdict })) }, runs };
     await mkdir('reports', { recursive: true });

@@ -139,15 +139,17 @@ export function compare(got, want) {
   return out;
 }
 
-export async function generate(url, { llm = DEFAULT_LLM, log = console.log } = {}) {
+export async function generate(url, { llm = DEFAULT_LLM, log = console.log, onPage = () => {} } = {}) {
+  log(`Opening ${url}`);
   const pages = await crawl(url);
+  pages.forEach(onPage);
   if (!pages.length) throw new Error(`could not load ${url}`);
-  log(`read ${pages.length} page(s): ${pages.map((p) => p.url).join(', ')}`);
+  log(`Read ${pages.length} page(s). ${llm.model} is drafting your config…`);
   const messages = [{ role: 'system', content: PROMPT }, { role: 'user', content: pagesToContent(pages) }];
   let draft = await ask(messages, llm);
   let { errors, missing } = validate(draft.config);
   if (errors.length) { // one repair round for format slips
-    log(`fixing: ${errors.join('; ')}`);
+    log(`Fixing format: ${errors.join('; ')}`);
     messages.push({ role: 'user', content: `The config has format errors. Return the full corrected JSON.\n${errors.join('\n')}` });
     draft = await ask(messages, llm);
     ({ errors, missing } = validate(draft.config));

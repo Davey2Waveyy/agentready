@@ -2,15 +2,32 @@
 // ponytail: demo sites are bundled JSON; a real multi-business deploy loads configs from a database by site id
 import barbershop from '../public/barbershop/agentready.json' with { type: 'json' };
 import salon from '../public/salon/agentready.json' with { type: 'json' };
-import { readFileSync } from 'node:fs';
 
 const SITES = { barbershop, salon };
-// AGENTREADY_CONFIG: a generated draft under verification (local gauntlet only; dev.mjs serves the same file)
-const draft = process.env.AGENTREADY_CONFIG && JSON.parse(readFileSync(process.env.AGENTREADY_CONFIG, 'utf8'));
-export const siteConfig = (id) => draft || SITES[id || 'barbershop'] || null;
+// Drafts under verification, served only to the test browser. ponytail: in memory, so the app server must be one long-lived process
+const drafts = new Map();
+export function addDraft(config) {
+  const id = `draft-${crypto.randomUUID().slice(0, 8)}`;
+  drafts.set(id, config);
+  return id;
+}
+export const siteConfig = (id) => drafts.get(id) || SITES[id || 'barbershop'] || null;
 
-// Fake slots + bookings (flagged mock:true) with no Cal.com username, or AGENTREADY_MOCK=1 (tests: never book for real)
-export const isMock = (config) => process.env.AGENTREADY_MOCK === '1' || !config.booking?.username;
+// Fake slots + bookings (flagged mock:true): no Cal.com username, a draft under verification, or AGENTREADY_MOCK=1 (tests)
+export const isMock = (config) => process.env.AGENTREADY_MOCK === '1' || !config.booking?.username || [...drafts.values()].includes(config);
+
+// Streams one JSON object per line while `work(send)` runs; a thrown error becomes a final {type:'error'} line.
+export function ndjson(work) {
+  const enc = new TextEncoder();
+  const body = new ReadableStream({
+    async start(ctl) {
+      const send = (ev) => ctl.enqueue(enc.encode(JSON.stringify(ev) + '\n'));
+      try { await work(send); } catch (e) { send({ type: 'error', message: e.message }); }
+      ctl.close();
+    },
+  });
+  return new Response(body, { headers: { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store' } });
+}
 const CAL = 'https://api.cal.com/v2';
 
 export const json = (body, status = 200) => Response.json(body, { status });

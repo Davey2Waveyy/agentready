@@ -3,11 +3,12 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const PORT = process.env.PORT || 3100;
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.txt': 'text/plain' };
 
-createServer(async (req, res) => {
+export const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const api = url.pathname.match(/^\/api\/([a-z-]+)$/);
   if (api) {
@@ -17,18 +18,18 @@ createServer(async (req, res) => {
     for await (const c of req) chunks.push(c);
     const body = ['GET', 'HEAD'].includes(req.method) ? undefined : Buffer.concat(chunks);
     const out = await handler(new Request(url, { method: req.method, headers: req.headers, body }));
-    res.writeHead(out.status, Object.fromEntries(out.headers)).end(Buffer.from(await out.arrayBuffer()));
-    return;
+    res.writeHead(out.status, Object.fromEntries(out.headers));
+    if (out.body) for await (const chunk of out.body) res.write(chunk); // streams (NDJSON) pass through as they come
+    return res.end();
   }
   let path = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, '');
   if (path.endsWith('/')) path += 'index.html';
-  // AGENTREADY_CONFIG: serve a generated draft as the site's config, to verify it before it goes live
-  if (process.env.AGENTREADY_CONFIG && path.endsWith('/agentready.json')) path = process.env.AGENTREADY_CONFIG;
-  else path = join('public', path);
   try {
-    const file = await readFile(path);
+    const file = await readFile(join('public', path));
     res.writeHead(200, { 'content-type': TYPES[extname(path)] || 'application/octet-stream' }).end(file);
   } catch {
     res.writeHead(404).end('Not found');
   }
-}).listen(PORT, () => console.log(`http://localhost:${PORT}/barbershop/`));
+});
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) server.listen(PORT, () => console.log(`http://localhost:${PORT}/`));
