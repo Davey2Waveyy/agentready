@@ -18,6 +18,8 @@ section { padding: 48px 0; border-top: 1px solid var(--line); }
 .btn { display: inline-block; padding: 12px 24px; border-radius: 999px; background: var(--sage); color: #fff; text-decoration: none; font-weight: 500; }
 .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .chips a { padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-size: 14px; background: #fff; }
-.board { width: 100%; max-width: 640px; border-radius: 6px; box-shadow: 0 18px 40px rgba(43, 42, 38, .18); display: block; }
+.board { width: 100%; height: auto; max-width: 640px; border-radius: 6px; box-shadow: 0 18px 40px rgba(43, 42, 38, .18); display: block; }
 .note { font-size: 14px; color: var(--muted); }
 footer { padding: 36px 0 56px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+.logo, nav a { white-space: nowrap; }
+@media (max-width: 600px) { header .wrap { height: auto; padding: 14px 0 10px; flex-wrap: wrap; row-gap: 4px; } .logo { font-size: 21px; } nav { gap: 16px; font-size: 13px; } }

@@ -4,184 +4,323 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AgentReady · Bookable by any AI agent</title>
-  <meta name="description" content="Paste your website. Meta's Muse models read it, build the tools AI agents need, and prove they work before you go live.">
+  <meta name="description" content="Paste your website link. Meta's Muse models read it, set up what AI agents need to answer your customers and take bookings, then test it all before anything goes live.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='6.5' y='1.5' width='16' height='16' rx='4.5' fill='none' stroke='%2316181d' stroke-width='1.6' opacity='.35'/><rect x='1.5' y='6.5' width='16' height='16' rx='4.5' fill='%2316181d'/><path d='M5.6 14.6l2.6 2.6 5.2-5.6' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f7f7f4; --panel: #fff; --ink: #16181d; --muted: #646a73; --line: #e3e3dd; --soft: #efefea;
-      --go: #11804a; --go-bg: #e3f4ea; --bad: #c2362b; --bad-bg: #fbe7e4; --warn: #9a6400; --warn-bg: #fdf1d8; --accent: #2d3cf0;
+      --bg: #f7f7f4; --panel: #fff; --fill: #f3f3ef; --ink: #16181d; --muted: #646a73; --line: #e3e3dd; --soft: #efefea;
+      --accent: #2d3cf0; --accent-bg: #eceefe; --warn: #8a5900; --warn-bg: #fdf1d8; --go: #0e7543; --go-bg: #e3f4ea; --bad: #c2362b; --bad-bg: #fbe7e4;
+      --r-sm: 8px; --r-md: 14px; --r-lg: 20px;
+      --shadow-1: 0 1px 2px rgb(22 24 29 / .05);
+      --shadow-2: 0 1px 2px rgb(22 24 29 / .05), 0 24px 48px -24px rgb(22 24 29 / .22);
       --serif: 'Instrument Serif', Georgia, serif; --sans: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+      accent-color: var(--ink);
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
     a { color: inherit; }
+    ::selection { background: var(--accent-bg); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .wrap { width: min(1080px, 100% - 32px); margin-inline: auto; }
-    header .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-    .logo { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.01em; text-decoration: none; }
-    .logo i { width: 22px; height: 22px; border-radius: 7px; background: var(--ink); display: grid; place-items: center; color: #fff; font-style: normal; font-size: 13px; }
-    header nav { display: flex; gap: 20px; font-size: 14px; color: var(--muted); }
-    header nav a { text-decoration: none; }
-
-    .hero { padding: clamp(48px, 10vw, 104px) 0 40px; }
-    h1 { font: 400 clamp(42px, 7.4vw, 80px)/1.02 var(--serif); letter-spacing: -.02em; margin: 0 0 20px; max-width: 15ch; }
-    h1 em { color: var(--accent); }
-    .lede { font-size: clamp(16px, 2vw, 19px); color: var(--muted); max-width: 54ch; margin: 0 0 32px; }
-    form.go { display: flex; gap: 8px; max-width: 620px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 6px; box-shadow: 0 6px 24px rgba(22, 24, 29, .06); }
-    form.go input { flex: 1; min-width: 0; border: 0; font: inherit; font-size: 16px; padding: 10px 12px; background: transparent; outline: none; }
-    button, .btn { font: inherit; font-weight: 500; border: 0; border-radius: 10px; padding: 11px 18px; background: var(--ink); color: #fff; cursor: pointer; text-decoration: none; white-space: nowrap; }
-    button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-    button:disabled { opacity: .45; cursor: default; }
-    .demos { margin-top: 14px; font-size: 14px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .demos button { padding: 6px 12px; font-size: 13px; border-radius: 999px; }
-
-    .step { padding: 40px 0; border-top: 1px solid var(--line); }
-    .step[hidden] { display: none; }
-    .step-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
-    .step-head b { font: 500 12px var(--mono); color: var(--muted); letter-spacing: .08em; }
-    h2 { font: 400 clamp(28px, 4.4vw, 40px)/1.1 var(--serif); margin: 0; }
-    .step-head p { margin: 0; color: var(--muted); flex-basis: 100%; }
-
-    .log { font: 13px/1.7 var(--mono); color: var(--muted); margin: 0 0 16px; padding: 0; list-style: none; }
-    .log li::before { content: '→ '; color: var(--accent); }
-    .shots { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
-    .shots figure { margin: 0; flex: 0 0 180px; }
-    .shots img { width: 180px; height: 240px; object-fit: cover; object-position: left top; border-radius: 8px; border: 1px solid var(--line); display: block; }
-    .shots figcaption { font: 11px var(--mono); color: var(--muted); margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
-    .card h3 { margin: 0 0 14px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-    label.f { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-    input.v, select.v { display: block; width: 100%; font: inherit; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; margin-top: 3px; background: #fff; }
-    input.v:focus { outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); }
-    input.v.missing { border-color: var(--warn); background: var(--warn-bg); }
-    table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; font-size: 11px; font-weight: 500; color: var(--muted); padding: 0 6px 6px 0; }
-    td { padding: 3px 6px 3px 0; vertical-align: middle; }
-    td input.v { margin: 0; padding: 6px 7px; }
-    td.day { font-weight: 500; width: 46px; }
-    td.closed { font-size: 12px; color: var(--muted); white-space: nowrap; }
-    .scroll { overflow-x: auto; }
-    .services td input.v { min-width: 64px; }
-    .services td:first-child input.v { min-width: 150px; }
-    .questions { background: var(--warn-bg); border-color: #f0dcae; grid-column: 1 / -1; }
-    .questions h3 { color: var(--warn); }
-    .questions ol { margin: 0; padding-left: 18px; } .questions li { margin-bottom: 6px; }
-    details.evidence { margin-top: 16px; font-size: 13px; color: var(--muted); }
-    details.evidence summary { cursor: pointer; color: var(--ink); font-weight: 500; }
-    details.evidence dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 10px 0 0; }
-    details.evidence dt { font-family: var(--mono); font-size: 12px; color: var(--ink); }
-    details.evidence dd { margin: 0; }
-    .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
     .hint { font-size: 13px; color: var(--muted); }
 
-    .matrix { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-    .matrix .card { padding: 16px 16px 10px; }
-    .matrix h3 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
-    .row { display: grid; grid-template-columns: 1fr repeat(var(--n, 3), 52px); gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--soft); font-size: 13px; }
-    .row.head { border: 0; font: 10px var(--mono); color: var(--muted); padding-top: 0; }
-    .row.head span:not(:first-child) { text-align: center; line-height: 1.3; }
-    .cell { width: 100%; height: 26px; border-radius: 6px; background: var(--soft); border: 0; padding: 0; display: grid; place-items: center; font-size: 13px; font-weight: 600; color: transparent; }
-    .cell.run { background: linear-gradient(90deg, var(--soft), #e2e2dc, var(--soft)); background-size: 200% 100%; animation: shimmer 1.1s linear infinite; }
-    @keyframes shimmer { to { background-position: -200% 0; } }
-    .cell.ok { background: var(--go-bg); color: var(--go); cursor: pointer; }
-    .cell.no { background: var(--bad-bg); color: var(--bad); cursor: pointer; }
-    .twin .cell.no { background: var(--go-bg); color: var(--go); } /* a twin that fails = the test caught the fault */
-    .twin .cell.ok { background: var(--bad-bg); color: var(--bad); }
-    .twin .cell.na, .twin .cell.na.ok, .twin .cell.na.no { background: var(--soft); color: var(--muted); font-weight: 400; } /* not aimed at any fault */
-    .row small { display: block; color: var(--muted); font-size: 11px; }
-    @media (prefers-reduced-motion: reduce) { .cell.run { animation: none; } }
-    .detail { margin-top: 16px; font-size: 14px; }
-    .detail[hidden] { display: none; }
-    .detail q { display: block; quotes: none; background: var(--soft); border-radius: 8px; padding: 10px 12px; margin: 8px 0; white-space: pre-wrap; }
-    .detail ul { margin: 6px 0 0; padding-left: 18px; }
-    .detail .x { color: var(--bad); } .detail .y { color: var(--go); }
+    /* ---- header: nav on the landing page, a stepper once a run starts ---- */
+    header { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 85%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid transparent; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -.015em; text-decoration: none; }
+    header nav { display: flex; gap: 20px; font-size: 14px; color: var(--muted); }
+    header nav a { text-decoration: none; padding: 10px 0; } header nav a:hover { color: var(--ink); }
+    .progress { display: none; }
+    body.flow header { border-color: var(--line); } body.flow header nav { display: none; }
+    body.flow .progress { display: flex; gap: 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--muted); }
+    .progress li::before { content: attr(data-n); display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 6px; border-radius: 50%; border: 1px solid var(--line); font: 500 10px var(--mono); }
+    .progress li.on { color: var(--ink); font-weight: 500; } .progress li.on::before { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .progress li.done { color: var(--go); } .progress li.done::before { content: '✓'; background: var(--go); color: #fff; border-color: var(--go); }
 
-    .verdict { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
-    .badge { display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px 12px 12px; border-radius: 999px; background: var(--ink); color: #fff; font-weight: 500; }
-    .badge i { width: 28px; height: 28px; border-radius: 50%; background: #2fcf7c; color: var(--ink); display: grid; place-items: center; font-style: normal; font-weight: 700; }
-    .badge.fail { background: var(--bad); } .badge.fail i { background: #fff; color: var(--bad); }
-    pre.snippet { font: 13px/1.6 var(--mono); background: var(--ink); color: #e9eaf0; padding: 16px; border-radius: 12px; overflow-x: auto; margin: 16px 0 10px; }
+    button { font: inherit; font-weight: 500; border: 0; border-radius: 10px; padding: 11px 18px; background: var(--ink); color: #fff; cursor: pointer; white-space: nowrap; }
+    button.ghost { background: var(--panel); color: var(--ink); border: 1px solid var(--line); } button.ghost:hover:not(:disabled) { border-color: var(--ink); }
+    button.sm { padding: 6px 12px; font-size: 13px; margin-top: 10px; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button[aria-busy=true] { opacity: 1; cursor: progress; }
+    button[aria-busy=true]::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border: 2px solid rgb(255 255 255 / .35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    .del, .close { background: none; color: var(--muted); border: 0; width: 36px; height: 36px; padding: 0; border-radius: var(--r-sm); font-size: 18px; line-height: 1; }
+    .del:hover { background: var(--bad-bg); color: var(--bad); } .close:hover { background: var(--soft); color: var(--ink); }
 
-    .how { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); padding: 8px 0 48px; }
-    .how div { border-top: 2px solid var(--ink); padding-top: 14px; }
-    .how b { display: block; margin-bottom: 4px; }
-    .how p { margin: 0; color: var(--muted); font-size: 14px; }
+    /* ---- hero ---- */
+    .hero { padding: clamp(40px, 8vw, 88px) 0 48px; }
+    @media (min-width: 960px) { .hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 56px; align-items: center; } }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; font: 500 12px var(--mono); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 10px; margin: 0 0 20px; }
+    .eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: var(--go); }
+    h1 { font: 400 clamp(40px, 5.6vw, 64px)/1.04 var(--serif); letter-spacing: -.02em; margin: 0 0 20px; max-width: 12em; text-wrap: balance; }
+    h1 em { color: var(--accent); white-space: nowrap; }
+    .lede { font-size: clamp(16px, 2vw, 18px); color: var(--muted); max-width: 52ch; margin: 0 0 28px; }
+    form.go { display: flex; gap: 8px; max-width: 600px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md); padding: 6px; box-shadow: var(--shadow-2); transition: border-color .15s, box-shadow .15s; }
+    form.go:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent), var(--shadow-2); }
+    form.go input { flex: 1; min-width: 0; border: 0; font: inherit; font-size: 16px; padding: 10px 12px; background: transparent; outline: none; }
+    .demos { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+    .demos span { flex-basis: 100%; }
+    .demos button { display: grid; gap: 1px; text-align: left; padding: 8px 14px; border-radius: 12px; font-size: 14px; box-shadow: var(--shadow-1); }
+    .demos small { font-size: 12px; font-weight: 400; color: var(--muted); }
+    .hero-proof { margin-top: 40px; max-width: 440px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 18px 18px 14px; box-shadow: var(--shadow-2); }
+    @media (min-width: 960px) { .hero-proof { margin-top: 0; transform: rotate(-1deg); } }
+    .hp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 14px; }
+    .hero-proof .row { min-height: 48px; padding: 6px 0; }
+    .hero-proof .cell { height: 28px; }
+    .hero-proof .row small { white-space: normal; text-wrap: pretty; }
+    .hp-twin { margin: 10px 0; font-size: 13px; color: var(--muted); } .hp-twin b { color: var(--go); font-weight: 600; }
+    .hp-tag { display: block; font: 12px var(--mono); background: var(--ink); color: #e9eaf0; padding: 10px 12px; border-radius: 10px; }
+    body.flow .hero-proof { display: none; }
+
+    /* ---- steps ---- */
+    .step { padding: 48px 0; border-top: 1px solid var(--line); scroll-margin-top: 64px; } .step[hidden] { display: none; }
+    .step.active:not(#s-done) { min-height: calc(100svh - 64px); }
+    body.flow #how { display: none; }
+    .step-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
+    .step-head b { flex: none; position: relative; display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); font: 500 12px var(--mono); color: var(--muted); }
+    .step.active .step-head b { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .step.done .step-head b { background: var(--go); border-color: var(--go); color: transparent; }
+    .step.done .step-head b::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font: 600 14px var(--sans); }
+    #how .step-head b { display: block; flex-basis: 100%; width: auto; height: auto; border: 0; background: none; border-radius: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    h2 { font: 400 clamp(30px, 4.2vw, 42px)/1.08 var(--serif); letter-spacing: -.01em; margin: 0; }
+    .step-head p { flex-basis: 100%; margin: 0; color: var(--muted); padding-right: max(0px, 100% - 70ch); } /* padding, not max-width: a capped width would let it sit beside the h2 */
+    /* finished Read/Review steps fold to a one-line summary; Verify stays open next to the verdict */
+    .sum { display: none; }
+    #s-read.done > :not(.step-head), #s-review.done > :not(.step-head), .step.done .step-head p:not(.sum) { display: none; }
+    #s-read.done, #s-review.done { padding: 20px 0; min-height: 0; } #s-read.done h2, #s-review.done h2 { font-size: 24px; }
+    .step.done .sum { display: block; font-size: 14px; }
+    body:has(#verify-btn[aria-busy=true]) #review-sum button { display: none; }
+    .sum button { all: unset; cursor: pointer; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .timer { font: 12px var(--mono); color: var(--muted); } #s-read:not(.busy) .timer { display: none; }
+
+    /* ---- 01 read ---- */
+    .log { font: 13px/1.8 var(--mono); color: var(--muted); margin: 0 0 16px; padding: 0; list-style: none; }
+    .log li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .log li::before { content: '✓'; display: inline-block; width: 1.6em; color: var(--go); }
+    .log li.err { color: var(--bad); white-space: normal; } .log li.err::before { content: '✗'; color: var(--bad); }
+    #s-read.busy .log li:last-child { color: var(--ink); }
+    #s-read.busy .log li:last-child::before { content: ''; width: 7px; height: 7px; margin: 0 calc(1.6em - 7px) 1px 0; border-radius: 50%; background: var(--accent); animation: blink 1s ease-in-out infinite; }
+    .shots { --h: 240px; display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+    .shots figure { position: relative; margin: 0; flex: 0 0 180px; animation: rise .4s ease both; }
+    .shots img { width: 180px; height: var(--h); object-fit: cover; object-position: left top; border-radius: 10px; border: 1px solid var(--line); box-shadow: var(--shadow-1); display: block; }
+    @media (min-width: 720px) { .shots { --h: 290px; } .shots figure { flex-basis: 220px; } .shots img { width: 220px; } }
+    #s-read.busy .shots figure:last-child::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--accent); box-shadow: 0 0 12px 3px color-mix(in srgb, var(--accent) 40%, transparent); animation: scan 1.6s ease-in-out infinite alternate; }
+    .shots figcaption { font: 11px var(--mono); color: var(--muted); margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ---- 02 review ---- */
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md); padding: 20px; box-shadow: var(--shadow-1); }
+    .card h3 { margin: 0 0 14px; font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .card h3 span { font: 400 13px var(--sans); letter-spacing: 0; text-transform: none; }
+    .card .sub { margin: -8px 0 12px; }
+    #s-review > * + * { margin-top: 16px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
+    @media (min-width: 760px) { .grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+    label.f { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 12px; }
+    .addr { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } .addr > :first-child { grid-column: 1 / -1; }
+    input.v { display: block; width: 100%; font: 400 15px/1.4 var(--sans); color: var(--ink); background: var(--fill); border: 1px solid transparent; border-radius: var(--r-sm); padding: 9px 10px; margin-top: 4px; transition: border-color .15s, background-color .15s; }
+    input.v:hover:not(:disabled) { border-color: var(--line); }
+    input.v:focus { outline: none; background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+    input.v.missing { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 40%, transparent); } input.v.missing::placeholder { color: var(--warn); opacity: .8; }
+    input.v:disabled { background: transparent; border: 1px dashed var(--line); } input.v.quiet { color: var(--muted); }
+    input[type=number].v { text-align: right; font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 3px 8px 3px 0; vertical-align: middle; } td input.v { margin: 0; }
+    td.day { font-weight: 500; width: 48px; }
+    #hours input.v { text-align: center; font-variant-numeric: tabular-nums; } #hours tr.off td.day { color: var(--muted); }
+    td.closed { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    td.closed label { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; cursor: pointer; } td.closed input { width: 18px; height: 18px; margin: 0; }
+    .scroll { overflow-x: auto; }
+    .services th { text-align: left; font: 500 11px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 8px 8px 0; border-bottom: 1px solid var(--line); }
+    .services th.n { width: 104px; text-align: right; padding-right: 18px; } .services th.c { width: 96px; } .services th.s { width: 180px; } .services th:last-child { width: 44px; }
+    .services td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--soft); } .services tr:last-child td { border-bottom: 0; }
+    .services td.hint { padding-left: 10px; } .services td.hint:nth-child(3) { text-align: right; padding: 6px 18px 6px 0; } /* table row: no price */
+    @media (min-width: 641px) { .services td:first-child input.v { min-width: 150px; } }
+    #menu-card:not(.all) tr.more, #menu-card.all #menu-more { display: none; }
+    .questions { border-left: 3px solid var(--warn); } .questions h3 { color: var(--warn); } .questions .hint { margin: -8px 0 8px; }
+    .questions ol { list-style: none; counter-reset: q; margin: 0; padding: 0; }
+    .questions li { counter-increment: q; display: grid; grid-template-columns: 22px minmax(0, 80ch); gap: 12px; padding: 10px 0; border-top: 1px solid var(--soft); font-size: 14px; line-height: 1.5; }
+    .questions li::before { content: counter(q); height: 22px; font: 500 11px/22px var(--mono); text-align: center; border-radius: 50%; background: var(--warn-bg); color: var(--warn); }
+    .questions:not(.all) li:nth-child(n+4), .questions.all #q-more { display: none; }
+    details.evidence { margin-top: 12px; font-size: 13px; color: var(--muted); }
+    details.evidence summary { cursor: pointer; color: var(--ink); font-weight: 500; padding: 10px 0; }
+    details.evidence dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 4px 0 0; }
+    details.evidence dt { font: 12px var(--mono); color: var(--ink); } details.evidence dd { margin: 0; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+    #s-review .bar { position: sticky; bottom: 0; z-index: 5; margin: 24px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
+    #todo { margin: 0; color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+    .notice { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin-top: 16px; padding: 10px 12px 10px 14px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 25%, transparent); font-size: 14px; }
+    .notice button { margin: 0; } .bar .notice { flex-basis: 100%; order: -1; margin: 0; }
+
+    /* ---- 03 verify ---- */
+    .vstatus { position: sticky; top: 64px; z-index: 3; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; padding: 12px 0; margin: -12px 0 12px; background: var(--bg); }
+    .prog { grid-column: 1 / -1; height: 3px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+    .prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
+    #s-verify.ok .prog i { background: var(--go); } #s-verify.fail .prog i { background: var(--bad); }
+    #v-status { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #v-status q { color: var(--muted); }
+    #v-count { font: 12px var(--mono); color: var(--muted); }
+    #s-verify:is(.ok, .fail) .vstatus { position: static; } /* once done, stop covering the matrix next to the verdict */
+    .vstatus .notice { grid-column: 1 / -1; margin: 0; }
+    .faults { grid-column: 1 / -1; list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+    .faults li { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--muted); transition: background .3s, color .3s; }
+    .faults li b { font: 500 11px var(--mono); margin-left: 4px; }
+    .faults li.done { background: var(--go-bg); color: var(--go); } .faults li.done::before { content: '✓ '; }
+    .matrix { display: grid; gap: 16px; grid-template-columns: 1fr; grid-auto-flow: row dense; }
+    @media (min-width: 760px) { .matrix { grid-template-columns: 1fr 1fr; } }
+    .matrix .card { padding: 16px 16px 8px; }
+    .matrix .twin { border-style: dashed; border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); } .matrix .twin h3 { color: var(--bad); }
+    .row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--n, 3), 56px); gap: 6px; align-items: center; min-height: 56px; padding: 8px 0; border-top: 1px solid var(--soft); font-size: 14px; }
+    .row small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .twin .row small { white-space: normal; } /* the planted fault is the point of the twin row */
+    .row.head { min-height: 0; padding: 0 0 6px; border: 0; font: 500 12px/1.2 var(--sans); color: var(--muted); }
+    .row.head span:not(:first-child) { text-align: center; white-space: nowrap; } .row.head small { font: 400 10px/1.3 var(--mono); }
+    .cell { width: 100%; height: 32px; border: 0; border-radius: var(--r-sm); padding: 0; display: grid; place-items: center; font: 600 14px var(--sans); color: transparent; background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+    .cell:disabled { opacity: 1; cursor: default; } .cell:not(:disabled) { cursor: pointer; } .cell:not(:disabled):hover { filter: brightness(.95); }
+    .cell.ok { background: var(--go-bg); color: var(--go); box-shadow: none; animation: pop .3s cubic-bezier(.2, 1.4, .4, 1); }
+    .cell.no { background: var(--bad-bg); color: var(--bad); box-shadow: none; animation: pop .3s cubic-bezier(.2, 1.4, .4, 1); }
+    .twin .cell.na { background: repeating-linear-gradient(135deg, var(--soft) 0 3px, transparent 3px 7px); box-shadow: none; color: var(--muted); font-weight: 400; }
+    .matrix .cell.run { background: var(--accent-bg); box-shadow: inset 0 0 0 1.5px var(--accent); animation: pulse 1s ease-in-out infinite; }
+    .cell[aria-pressed=true] { outline: 2px solid var(--ink); outline-offset: 2px; }
+    .legend { margin: 12px 0 0; }
+    .detail { font-size: 14px; box-shadow: var(--shadow-2); } .detail[hidden] { display: none; } .matrix > .detail { grid-column: 1 / -1; }
+    .detail .dh { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .msg { width: fit-content; max-width: min(560px, 88%); padding: 10px 14px; border-radius: 16px; margin: 8px 0; white-space: pre-wrap; }
+    .msg.cust { margin-left: auto; background: var(--ink); color: #fff; border-bottom-right-radius: 4px; }
+    .msg.agent { background: var(--soft); border-bottom-left-radius: 4px; }
+    .tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+    .tools code { font: 12px var(--mono); background: var(--accent-bg); color: var(--accent); padding: 2px 8px; border-radius: 6px; }
+    .checks { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+    .checks li { font-size: 12px; padding: 3px 10px; border-radius: 999px; } .checks .y { background: var(--go-bg); color: var(--go); } .checks .x { background: var(--bad-bg); color: var(--bad); }
+
+    /* ---- 04 verdict + install ---- */
+    .verdict-card { border-radius: var(--r-lg); padding: clamp(20px, 4vw, 32px); background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow-2); }
+    .verdict-card:focus { outline: none; } .verdict-card > :last-child { margin-bottom: 0; }
+    .step-head p, .lede { text-wrap: pretty; }
+    .verdict-card.ok { background: linear-gradient(180deg, var(--go-bg), var(--panel) 60%); border-color: color-mix(in srgb, var(--go) 22%, var(--line)); }
+    .verdict-card.fail { background: linear-gradient(180deg, var(--bad-bg), var(--panel) 60%); border-color: color-mix(in srgb, var(--bad) 22%, var(--line)); }
+    .verdict-card h3 { font: 400 clamp(32px, 5vw, 48px)/1.05 var(--serif); letter-spacing: -.01em; margin: 16px 0 10px; }
+    .stats { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0 0 20px; font: 13px var(--mono); color: var(--muted); } .stats b { color: var(--ink); font-weight: 500; }
+    .badge { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px 8px 8px; border-radius: 999px; background: var(--ink); color: #fff; font-weight: 500; font-size: 14px; animation: pop .45s cubic-bezier(.2, 1.4, .4, 1) both; }
+    .badge i { width: 26px; height: 26px; border-radius: 50%; background: var(--go); color: #fff; display: grid; place-items: center; font-style: normal; font-weight: 700; }
+    .badge.sm { padding: 4px 10px 4px 4px; font-size: 12px; gap: 6px; animation: none; } .badge.sm i { width: 18px; height: 18px; font-size: 11px; }
+    .verdict-card.fail .badge { background: var(--bad); } .verdict-card.fail .badge i { background: #fff; color: var(--bad); }
+    .snip { position: relative; margin-bottom: 12px; }
+    pre.snippet { margin: 0; padding: 16px 128px 16px 16px; font: 13px/1.6 var(--mono); background: var(--ink); color: #e9eaf0; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #copy { position: absolute; top: 8px; right: 8px; padding: 8px 14px; font-size: 13px; background: #2b2f38; } #copy.copied { background: var(--go); }
+
+    .how { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); padding: 8px 0 48px; }
+    .how div { border-top: 2px solid var(--ink); padding-top: 14px; } .how b { display: block; margin-bottom: 4px; } .how p { margin: 0; color: var(--muted); font-size: 14px; }
     footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--muted); font-size: 13px; }
+
+    @keyframes spin { to { transform: rotate(1turn); } }
+    @keyframes blink { 50% { opacity: .25; } }
+    @keyframes pulse { 50% { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); } }
+    @keyframes pop { from { transform: scale(.6); opacity: 0; } }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+    @keyframes scan { to { transform: translateY(calc(var(--h) - 2px)); } }
+
+    @media (max-width: 640px) {
+      .step { padding: 32px 0; } .card { padding: 16px; }
+      .progress li:not(.on) { display: none; }
+      input.v { font-size: 16px; min-height: 44px; }
+      .demos { display: grid; grid-template-columns: 1fr 1fr; } .demos span { grid-column: 1 / -1; }
+      .scroll { overflow: visible; }
+      #services, #services tbody { display: block; } #services tr:first-child { display: none; }
+      #services tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 40px; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--soft); }
+      #services td { padding: 0; border: 0; } #services td:first-child { grid-column: 1 / 4; }
+      #services td:last-child { grid-column: 4; grid-row: 1; align-self: center; } #services td:nth-last-child(2) { grid-column: 1 / -1; }
+      #services td.hint, #services td:empty { display: none; }
+      #services td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+      #menu tr > :nth-child(2) { display: none; } #menu th.n { width: 64px; }
+      details.evidence dl { grid-template-columns: minmax(0, 1fr); } details.evidence dd { margin-bottom: 8px; }
+      .faults { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; } .faults li { flex: none; }
+      .eyebrow { font-size: 11px; }
+      .row { grid-template-columns: minmax(0, 1fr) repeat(var(--n, 3), 48px); }
+      .cell { height: 40px; }
+      pre.snippet { padding: 14px; font-size: 12px; } #copy { position: static; width: 100%; min-height: 48px; margin-top: 8px; background: var(--ink); }
+      #verify-btn { flex: 1; min-height: 48px; } #s-review .bar .hint { flex-basis: 100%; font-size: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
   <header>
     <div class="wrap">
-      <a class="logo" href="./"><i>✓</i>AgentReady</a>
+      <a class="logo" href="./"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="1.5" width="16" height="16" rx="4.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".35"/><rect x="1.5" y="6.5" width="16" height="16" rx="4.5" fill="currentColor"/><path d="M5.6 14.6l2.6 2.6 5.2-5.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>AgentReady</a>
+      <ol class="progress" aria-label="Progress"><li data-n="1">Read</li><li data-n="2">Check</li><li data-n="3">Test</li><li data-n="4">Install</li></ol>
       <nav><a href="#how">How it works</a><a href="https://github.com/Davey2Waveyy/agentready">GitHub</a></nav>
     </div>
   </header>
 
   <main class="wrap">
     <section class="hero">
-      <h1>Make your business bookable by <em>any AI agent.</em></h1>
-      <p class="lede">Paste your website. Meta's Muse models read it, build the tools agents use to answer customers and book appointments, then prove they work before you go live.</p>
-      <form class="go" id="go">
-        <input id="url" type="url" required placeholder="https://your-business.com" aria-label="Your website">
-        <button id="go-btn">Read my site</button>
-      </form>
-      <div class="demos">Try a demo:
-        <button type="button" class="ghost" data-demo="barbershop/">Fade Street Barbers</button>
-        <button type="button" class="ghost" data-demo="salon/">Juniper Nail &amp; Brow</button>
+      <div class="hero-copy">
+        <p class="eyebrow"><i></i>Muse Spark · WebMCP · Meta Global AI Hackathon</p>
+        <h1>Make your business bookable by <em>any AI agent.</em></h1>
+        <p class="lede">Paste your website link. Meta's Muse models read it, set up what AI agents need to answer your customers and take bookings, then test it all before anything goes live.</p>
+        <form class="go" id="go">
+          <input id="url" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" required placeholder="yourbusiness.com" aria-label="Your website">
+          <button id="go-btn">Read my site</button>
+        </form>
+        <div class="demos"><span>No site handy? Try a demo</span>
+          <button type="button" class="ghost" data-demo="barbershop/">Fade Street Barbers<small>Barbershop · clean site</small></button>
+          <button type="button" class="ghost" data-demo="salon/">Juniper Nail &amp; Brow<small>Salon · prices in a photo</small></button>
+        </div>
       </div>
+      <aside class="hero-proof" aria-hidden="true">
+        <div class="hp-top"><b>Fade Street Barbers</b><span class="badge sm"><i>✓</i>Verified</span></div>
+        <div class="row head" style="--n:3"><span>Customer task</span><span>Spark<small>1.3</small></span><span>Wonder<small>1.0</small></span><span>Spark<small>1.2</small></span></div>
+        <div class="row" style="--n:3"><span>Closing time<small>“What time do you close Saturday?”</small></span><span class="cell ok">✓</span><span class="cell ok">✓</span><span class="cell ok">✓</span></div>
+        <div class="row" style="--n:3"><span>Price<small>“How much is a skin fade?”</small></span><span class="cell ok">✓</span><span class="cell ok">✓</span><span class="cell ok">✓</span></div>
+        <div class="row" style="--n:3"><span>Free slots<small>“Anything open Thursday afternoon?”</small></span><span class="cell ok">✓</span><span class="cell ok">✓</span><span class="cell ok">✓</span></div>
+        <div class="row" style="--n:3"><span>Books a slot<small>“Book me a classic cut Friday at 3.”</small></span><span class="cell ok">✓</span><span class="cell ok">✓</span><span class="cell ok">✓</span></div>
+        <div class="row" style="--n:3"><span>Says no at confirm<small>“Actually, cancel that.”</small></span><span class="cell ok">✓</span><span class="cell ok">✓</span><span class="cell ok">✓</span></div>
+        <p class="hp-twin">Broken twin · <b>3/3</b> planted faults caught</p>
+        <code class="hp-tag">&lt;script src="…/agentready.js" defer&gt;&lt;/script&gt;</code>
+      </aside>
     </section>
 
     <section class="step" id="s-read" hidden>
-      <div class="step-head"><b>01</b><h2>Reading your site</h2><p>Muse Spark reads each page and looks at it, so prices in photos and hours in paragraphs count too.</p></div>
-      <ul class="log" id="log"></ul>
+      <div class="step-head"><b>01</b><h2>Muse reads your site</h2><span class="timer" id="timer"></span><p>Muse Spark reads every page and looks at it too, so prices in photos and hours in paragraphs still count.</p><p class="sum" id="read-sum"></p></div>
+      <ul class="log" id="log" role="log" aria-live="polite"></ul>
       <div class="shots" id="shots"></div>
     </section>
 
     <section class="step" id="s-review" hidden>
-      <div class="step-head"><b>02</b><h2>Check what Muse found</h2><p>Nothing goes live until you approve it. Fix anything wrong; amber fields are ones your site didn't say.</p></div>
-      <div class="grid">
-        <div class="card" id="business"></div>
-        <div class="card" id="hours"></div>
-        <div class="card questions" id="questions" hidden><h3>Muse needs you to confirm</h3><ol></ol></div>
-      </div>
-      <div class="card" style="margin-top:16px">
-        <h3>Services</h3>
-        <div class="scroll"><table class="services" id="services"></table></div>
-        <details class="evidence" id="evidence"><summary>Where each value came from</summary><dl></dl></details>
-      </div>
-      <div class="card" id="menu-card" style="margin-top:16px" hidden>
-        <h3>Menu</h3><p class="hint" style="margin:-6px 0 10px">Agents can quote these prices. They aren't bookable.</p>
-        <div class="scroll"><table class="services" id="menu"></table></div>
-      </div>
-      <div class="actions">
-        <button id="verify-btn">Looks right, verify it</button>
-        <span class="hint">Three Meta models will try real customer requests against your site.</span>
-      </div>
+      <div class="step-head"><b>02</b><h2>You check the details</h2><p>Nothing goes live until you say so. Fix anything that's wrong. Yellow fields are things your site didn't say.</p><p class="sum" id="review-sum"></p></div>
+      <div class="card questions" id="questions" hidden><h3></h3><p class="hint">Answer by fixing the matching field below.</p><ol></ol><button type="button" class="ghost sm" id="q-more" hidden></button></div>
+      <div class="grid"><div class="card" id="business"></div><div class="card" id="hours"></div></div>
+      <div class="card"><h3>Services</h3><div class="scroll"><table class="services" id="services"></table></div>
+        <details class="evidence" id="evidence"><summary>Where Muse found each value</summary><dl></dl></details></div>
+      <div class="card" id="menu-card" hidden><h3>Menu <span id="menu-count"></span></h3><p class="hint sub">AI agents can quote these prices. Menu items can't be booked.</p>
+        <div class="scroll"><table class="services" id="menu"></table></div><button type="button" class="ghost sm" id="menu-more" hidden></button></div>
+      <div class="actions bar"><button type="button" class="ghost sm" id="todo" hidden></button><button id="verify-btn">Looks right, test it</button>
+        <span class="hint">3 Meta models will ask your site real customer questions and make test bookings. Nothing is actually booked.</span></div>
     </section>
 
     <section class="step" id="s-verify" hidden>
-      <div class="step-head"><b>03</b><h2>Proving it works</h2><p>Each model plays a customer: hours, prices, live availability, a booking, a booking the customer cancels. Then the same tasks run on a broken twin of your site (old prices, booking down, no confirm step). The twin has to fail, or the test proves nothing.</p></div>
+      <div class="step-head"><b>03</b><h2>AI customers test it</h2><p>Three Meta models play customers: hours, prices, a free slot, a booking, and a booking they back out of. Then they repeat it on a broken twin of your site with faults planted on purpose. Your site must pass; the twin must fail.</p></div>
+      <div class="vstatus"><div class="prog"><i id="v-bar"></i></div><p id="v-status"></p><span id="v-count" aria-live="polite"></span><ul class="faults" id="faults"></ul></div>
       <div class="matrix">
-        <div class="card"><h3>Your site <span>· must pass</span></h3><div id="m-site"></div></div>
-        <div class="card twin"><h3>Broken twin <span>· must be caught</span></h3><div id="m-twin"></div></div>
+        <div class="card"><h3>Your site <span>· every answer must be right</span></h3><div id="m-site"></div></div>
+        <div class="card twin"><h3>Broken twin <span>· every planted fault must be caught</span></h3><div id="m-twin"></div></div>
+        <div class="card detail" id="detail" hidden></div>
       </div>
-      <div class="card detail" id="detail" hidden></div>
+      <p class="hint legend">✓ right answer or fault caught · ✗ wrong answer or fault missed · – nothing planted · Tap any square to read the conversation.</p>
     </section>
 
     <section class="step" id="s-done" hidden>
-      <div class="verdict" id="verdict"></div>
-      <div id="install"></div>
+      <div class="step-head"><b>04</b><h2 id="done-title">Add it to your site</h2></div>
+      <div id="verdict" class="verdict-card" role="status" tabindex="-1"></div>
     </section>
 
     <section id="how" class="step">
-      <div class="step-head"><b>HOW</b><h2>Why a test, not a score</h2></div>
+      <div class="step-head"><b>How it works</b><h2>Why a test, not a score</h2><p>A score guesses. A test watches AI customers get your details right, and fail on a broken twin.</p></div>
       <div class="how">
         <div><b>Read</b><p>Muse Spark reads your pages and their images, and drafts your hours, services, prices and booking link, citing where each came from.</p></div>
-        <div><b>Install</b><p>One script tag exposes them to AI agents as WebMCP tools. Bookings always open a confirm step on your page; nothing books without a human click.</p></div>
         <div><b>Prove</b><p>Three Meta models act as skeptical customers. Every answer is checked against your data and your live calendar, and a deliberately broken twin has to fail.</p></div>
+        <div><b>Install</b><p>One script tag exposes them to AI agents as WebMCP tools. Bookings always open a confirm step on your page; nothing books without a human click.</p></div>
       </div>
     </section>
   </main>
@@ -190,17 +329,27 @@
 
   <script type="module">
     const $ = (s, el = document) => el.querySelector(s);
+    const $$ = (s, el = document) => [...el.querySelectorAll(s)];
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let draft = null; // { url, config, evidence, questions, missing }
+    let faults = [], models = [], caught = {};
+    // Display names only; ids sent to and received from the API are unchanged.
+    const modelName = (m) => m.replace(/^muse-/, '').replace(/-/g, ' ').replace(/\b[a-z]/g, (c) => c.toUpperCase()); // muse-spark-1.3 → Spark 1.3
+    const TASK = { 'closed-day': 'Closed day', 'closing-time': 'Closing time', price: 'Price', availability: 'Free slots', book: 'Books a slot', consent: 'Says no at confirm', 'closed-day-booking': 'Books a closed day' };
+    const taskName = (id) => TASK[id] ?? id.replace(/-/g, ' ');
+    const FAULT = { 'stale-info': 'old prices & hours', 'booking-down': 'booking system down', 'no-consent-gate': 'books without asking' };
+    const COL = { name: 'Service', minutes: 'Minutes', price: 'Price', currency: 'Currency', maxParty: 'Max party', calEventSlug: 'Cal.com event' };
+    const STEPS = ['#s-read', '#s-review', '#s-verify', '#s-done'];
 
-    for (const b of document.querySelectorAll('[data-demo]')) b.onclick = () => { $('#url').value = new URL(b.dataset.demo, location.origin).href; $('#go').requestSubmit(); };
+    for (const b of $$('[data-demo]')) b.onclick = () => { $('#url').value = new URL(b.dataset.demo, location.origin).href; $('#go').requestSubmit(); };
 
     // Start a job, then follow its NDJSON events. Each follow request ends after ~100 s (hosts cap requests); reconnect from where we were.
     async function stream(path, body, onEvent) {
       const res = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const { job, error } = await res.json().catch(() => ({}));
-      if (!job) throw new Error(error || `HTTP ${res.status}`);
+      if (!job) throw new Error(error || (res.status >= 500 ? 'Our server hit a problem reading this site.' : `The request failed (${res.status}).`));
       for (let seen = 0, ended = false, fails = 0; !ended;) {
         try {
           const r = await fetch(`/api/job?id=${job}&from=${seen}`);
@@ -226,24 +375,58 @@
         }
       }
     }
-    const show = (id) => { const el = $(id); el.hidden = false; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-    const log = (text) => $('#log').insertAdjacentHTML('beforeend', `<li>${esc(text)}</li>`);
+
+    const show = (id, block = 'start') => {
+      const el = $(id), n = STEPS.indexOf(id);
+      el.hidden = false;
+      STEPS.forEach((s, i) => { $(s).classList.toggle('active', i === n); $(s).classList.toggle('done', i < n); });
+      $$('.progress li').forEach((li, i) => { li.classList.toggle('on', i === n); li.classList.toggle('done', i < n); });
+      el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block });
+    };
+    // The server's log lines, in the owner's words.
+    const PLAIN = [[/^Fixing format.*/, 'Tidying up formats (currency, times)…'],
+      [/^Read (\d+) page\(s\)\. (\S+) is drafting your config…$/, (_, n, m) => `Read ${n} page${n === '1' ? '' : 's'}. Muse ${modelName(m)} is drafting your details…`]];
+    const log = (text, cls = '') => { for (const [re, to] of PLAIN) text = text.replace(re, to); $('#log').insertAdjacentHTML('beforeend', `<li class="${cls}" title="${esc(text)}">${esc(text)}</li>`); };
+    const busy = (btn, label) => { btn.dataset.idle ??= btn.textContent; btn.disabled = !!label; btn.setAttribute('aria-busy', !!label); btn.textContent = label || btn.dataset.idle; };
+    const plainErr = (s) => String(s).replace(/services\[(\d+)\]\.(\w+)/g, (_, i, k) => `${draft?.config.services[i]?.name || 'A service'} ${(COL[k] ?? k).toLowerCase()}`).replace(/ISO 4217 code/g, 'use a 3-letter code like CAD');
+    function notice(el, msg, retry) {
+      $$('.notice').forEach((n) => n.remove());
+      el.insertAdjacentHTML('beforeend', `<div class="notice" role="alert"><span>${esc(msg)}</span>${retry ? '<button type="button" class="ghost sm">Try again</button>' : ''}</div>`);
+      if (retry) $('.notice button', el).onclick = () => { $('.notice', el).remove(); retry(); };
+    }
 
     $('#go').onsubmit = async (e) => {
       e.preventDefault();
+      if ($('#go-btn').disabled) return; // demo chips use requestSubmit(), which ignores a disabled button
+      let u = $('#url').value.trim();
+      if (!/^https?:\/\//i.test(u)) $('#url').value = u = `https://${u}`;
+      document.body.classList.add('flow');
       for (const id of ['#s-review', '#s-verify', '#s-done']) $(id).hidden = true;
-      $('#log').innerHTML = ''; $('#shots').innerHTML = '';
-      $('#go-btn').disabled = true;
+      $('#log').innerHTML = ''; $('#shots').innerHTML = ''; draft = null; $$('.notice').forEach((n) => n.remove());
+      busy($('#go-btn'), 'Reading…'); $$('[data-demo]').forEach((b) => (b.disabled = true));
+      const t0 = Date.now(), secs = () => Math.round((Date.now() - t0) / 1000);
+      const tick = setInterval(() => ($('#timer').textContent = `${secs()}s · usually about a minute`), 1000);
+      $('#timer').textContent = '';
+      $('#s-read').classList.add('busy');
       show('#s-read');
       try {
-        await stream('/api/generate', { url: $('#url').value }, (ev) => {
+        await stream('/api/generate', { url: u }, (ev) => {
           if (ev.type === 'log') log(ev.text);
           if (ev.type === 'page') $('#shots').insertAdjacentHTML('beforeend', `<figure><img src="${ev.thumb}" alt=""><figcaption>${esc(new URL(ev.url).pathname)}</figcaption></figure>`);
-          if (ev.type === 'draft') { draft = ev.draft; renderReview(); }
-          if (ev.type === 'error') log(`Error: ${ev.message}`);
+          if (ev.type === 'draft') {
+            draft = ev.draft; log('Done. Check what Muse found below.');
+            const pages = $('#shots').children.length;
+            $('#read-sum').innerHTML = `${pages ? `${pages} page${pages === 1 ? '' : 's'} read` : 'Read'} in ${secs()}s · <button type="button" data-open="#s-read">Show</button>`;
+            $('#questions').classList.remove('all'); $('#menu-card').classList.remove('all');
+            renderReview(); show('#s-review');
+          }
+          if (ev.type === 'error') log(ev.message, 'err');
         });
-      } catch (err) { log(`Error: ${err.message}`); }
-      $('#go-btn').disabled = false;
+      } catch (err) { log(err.message, 'err'); }
+      clearInterval(tick);
+      $('#s-read').classList.remove('busy');
+      busy($('#go-btn')); $$('[data-demo]').forEach((b) => (b.disabled = false));
+      if (!draft) notice($('#s-read'), "Muse couldn't draft your details from this site.", () => $('#go').requestSubmit());
     };
 
     // ---- review: inputs bound to draft.config by data-path ----
@@ -253,42 +436,50 @@
       const obj = keys.reduce((o, k) => (o[k] ??= {}), draft.config);
       obj[last] = value;
     }
-    const field = (label, path, type = 'text') => {
-      const v = get(path);
-      return `<label class="f">${label}<input class="v${v == null || v === '' ? ' missing' : ''}" type="${type}" data-path="${path}" value="${esc(v)}"></label>`;
+    const field = (label, path) => {
+      const v = get(path), miss = v == null || v === '';
+      return `<label class="f">${label}<input class="v${miss ? ' missing' : ''}" data-path="${path}" value="${esc(v)}"${miss ? ' placeholder="Not on your site"' : ''}></label>`;
     };
-    function renderReview() {
+    const todo = () => { const n = $$('#s-review input.v.missing').length; $('#todo').hidden = !n; $('#todo').textContent = `${n} empty field${n === 1 ? '' : 's'}`; };
+    function renderReview() { // no scrolling here: it re-renders on edits
       const c = draft.config;
       $('#business').innerHTML = `<h3>Business</h3>${field('Name', 'name')}${field('Phone', 'phone')}${field('Street', 'address.street')}
-        <div style="display:grid;grid-template-columns:1fr 70px 100px;gap:8px">${field('City', 'address.city')}${field('Region', 'address.region')}${field('Postal code', 'address.postal')}</div>
-        ${field('Timezone', 'timezone')}${field('Booking link', 'booking.url')}`;
-      $('#hours').innerHTML = `<h3>Hours</h3><table>${DAYS.map((d) => {
-        const h = c.hours?.[d];
-        return `<tr><td class="day">${d[0].toUpperCase() + d.slice(1)}</td>
-          <td><input class="v" inputmode="numeric" placeholder="HH:MM" aria-label="${d} opens" data-hour="${d}.0" value="${h?.[0] ?? ''}" ${h ? '' : 'disabled'}></td>
-          <td><input class="v" inputmode="numeric" placeholder="HH:MM" aria-label="${d} closes (midnight is 24:00)" data-hour="${d}.1" value="${h?.[1] ?? ''}" ${h ? '' : 'disabled'}></td>
+        <div class="addr">${field('City', 'address.city')}${field('Province / state', 'address.region')}${field('Postal code', 'address.postal')}</div>
+        ${field('Time zone', 'timezone')}${field('Online booking page', 'booking.url')}`;
+      $('#hours').innerHTML = `<h3>Hours</h3><p class="hint sub">24-hour time · midnight is 24:00</p><table>${DAYS.map((d) => {
+        const h = c.hours?.[d], ph = h ? 'HH:MM' : '';
+        return `<tr${h ? '' : ' class="off"'}><td class="day">${d[0].toUpperCase() + d.slice(1)}</td>
+          <td><input class="v" placeholder="${ph}" aria-label="${d} opens" data-hour="${d}.0" value="${h?.[0] ?? ''}" ${h ? '' : 'disabled'}></td>
+          <td><input class="v" placeholder="${ph}" aria-label="${d} closes (midnight is 24:00)" data-hour="${d}.1" value="${h?.[1] ?? ''}" ${h ? '' : 'disabled'}></td>
           <td class="closed"><label><input type="checkbox" data-closed="${d}" ${h ? '' : 'checked'}> Closed</label></td></tr>`;
       }).join('')}</table>`;
       // A table reservation has no price; it has the largest party agents may book online instead.
       const tables = c.services.some((s) => s.kind === 'table');
+      const keys = ['name', 'minutes', 'price', 'currency', ...(tables ? ['maxParty'] : []), 'calEventSlug'];
+      const num = (k) => ['minutes', 'price', 'maxParty'].includes(k);
       const cell = (s, i, k) => s.kind === 'table' && ['price', 'currency'].includes(k) ? '<td class="hint">—</td>'
         : k === 'maxParty' && s.kind !== 'table' ? '<td></td>'
-        : `<td><input class="v${s[k] == null && k !== 'calEventSlug' ? ' missing' : ''}" data-svc="${i}.${k}" ${['minutes', 'price', 'maxParty'].includes(k) ? 'type="number" min="0" step="any"' : ''} value="${esc(s[k])}"></td>`;
-      $('#services').innerHTML = `<tr><th>Service</th><th>Minutes</th><th>Price</th><th>Currency</th>${tables ? '<th>Max party</th>' : ''}<th>Booking slug</th><th></th></tr>` +
-        c.services.map((s, i) => `<tr>${['name', 'minutes', 'price', 'currency', ...(tables ? ['maxParty'] : []), 'calEventSlug'].map((k) => cell(s, i, k)).join('')}
-          <td><button class="ghost" data-del="${i}" aria-label="Remove ${esc(s.name)}" style="padding:6px 10px">×</button></td></tr>`).join('');
-      $('#menu-card').hidden = !c.menu?.length;
-      $('#menu').innerHTML = `<tr><th>Item</th><th>Section</th><th>Price</th><th></th></tr>` + (c.menu ?? []).map((m, i) => `<tr>
-          <td><input class="v" data-menu="${i}.name" value="${esc(m.name)}"></td><td><input class="v" data-menu="${i}.section" value="${esc(m.section)}"></td>
-          <td><input class="v" type="number" min="0" step="any" data-menu="${i}.price" value="${esc(m.price)}"></td>
-          <td><button class="ghost" data-del-menu="${i}" aria-label="Remove ${esc(m.name)}" style="padding:6px 10px">×</button></td></tr>`).join('');
+        : `<td${k === 'name' ? '' : ` data-label="${COL[k]}"`}><input class="v${s[k] == null && k !== 'calEventSlug' ? ' missing' : ''}" data-svc="${i}.${k}" aria-label="${COL[k]}, ${esc(s.name || 'new service')}"${num(k) ? ' type="number" min="0" step="any" inputmode="decimal"' : ''}${k === 'calEventSlug' ? ' placeholder="optional" title="The event name at the end of your Cal.com link, e.g. skin-fade"' : ''} value="${esc(s[k])}"></td>`;
+      $('#services').innerHTML = `<tr>${keys.map((k) => `<th class="${num(k) ? 'n' : k === 'currency' ? 'c' : k === 'calEventSlug' ? 's' : ''}">${COL[k]}</th>`).join('')}<th></th></tr>` +
+        c.services.map((s, i) => `<tr>${keys.map((k) => cell(s, i, k)).join('')}<td><button type="button" class="del" data-del="${i}" aria-label="Remove ${esc(s.name)}">×</button></td></tr>`).join('');
+      const menu = c.menu ?? [];
+      $('#menu-card').hidden = !menu.length;
+      $('#menu-count').textContent = `· ${menu.length} items`;
+      $('#menu').innerHTML = `<tr><th>Item</th><th class="s">Section</th><th class="n">Price</th><th></th></tr>` + menu.map((m, i) => `<tr${i >= 8 ? ' class="more"' : ''}>
+          <td><input class="v" data-menu="${i}.name" aria-label="Item name" value="${esc(m.name)}"></td>
+          <td><input class="v quiet" data-menu="${i}.section" aria-label="Section, ${esc(m.name)}" value="${esc(m.section)}"></td>
+          <td><input class="v" type="number" min="0" step="any" inputmode="decimal" data-menu="${i}.price" aria-label="Price, ${esc(m.name)}" value="${esc(m.price)}"></td>
+          <td><button type="button" class="del" data-del-menu="${i}" aria-label="Remove ${esc(m.name)}">×</button></td></tr>`).join('');
+      $('#menu-more').hidden = menu.length <= 8; $('#menu-more').textContent = `Show all ${menu.length} items`;
       const qs = draft.questions || [];
       $('#questions').hidden = !qs.length;
+      $('#questions h3').textContent = `Muse has ${qs.length} question${qs.length === 1 ? '' : 's'} for you`;
       $('#questions ol').innerHTML = qs.map((q) => `<li>${esc(q)}</li>`).join('');
+      $('#q-more').hidden = qs.length <= 3; $('#q-more').textContent = `Show ${qs.length - 3} more`;
       const ev = Object.entries(draft.evidence || {});
       $('#evidence').hidden = !ev.length;
       $('#evidence dl').innerHTML = ev.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
-      show('#s-review');
+      todo();
     }
     $('#s-review').addEventListener('input', (e) => {
       const t = e.target;
@@ -303,72 +494,148 @@
         const [i, k] = t.dataset.menu.split('.');
         draft.config.menu[i][k] = t.type === 'number' ? (t.value === '' ? null : Number(t.value)) : t.value;
       }
-      if (t.classList.contains('v') && !t.dataset.menu) t.classList.toggle('missing', t.value === '');
+      if (t.classList.contains('v') && !t.dataset.menu && !t.dataset.svc?.endsWith('.calEventSlug')) t.classList.toggle('missing', t.value === '');
+      $('#s-done').hidden = true; // an install tag never sits next to edited, untested details
+      todo();
     });
     $('#s-review').addEventListener('change', (e) => {
       const d = e.target.dataset.closed;
-      if (d) { draft.config.hours[d] = e.target.checked ? null : ['10:00', '17:00']; renderReview(); }
+      if (!d) return;
+      // Unticking Closed brings back the hours it had; draft.off is page-only, the API gets draft.config.
+      const off = (draft.off ??= {}), h = draft.config.hours;
+      if (e.target.checked) { off[d] = h[d]; h[d] = null; } else h[d] = off[d] ?? ['10:00', '17:00'];
+      renderReview(); $(`[data-closed="${d}"]`).focus();
     });
     $('#s-review').addEventListener('click', (e) => {
-      const i = e.target.dataset.del;
-      if (i !== undefined) { draft.config.services.splice(+i, 1); renderReview(); }
-      const m = e.target.dataset.delMenu;
-      if (m !== undefined) { draft.config.menu.splice(+m, 1); renderReview(); }
+      const i = e.target.dataset.del, m = e.target.dataset.delMenu;
+      if (i !== undefined) { draft.config.services.splice(+i, 1); renderReview(); ($(`[data-del="${Math.min(+i, draft.config.services.length - 1)}"]`) ?? $('#verify-btn')).focus(); }
+      if (m !== undefined) { draft.config.menu.splice(+m, 1); renderReview(); ($(`[data-del-menu="${Math.min(+m, draft.config.menu.length - 1)}"]`) ?? $('#verify-btn')).focus(); }
+      if (e.target.id === 'q-more') $('#questions').classList.add('all');
+      if (e.target.id === 'menu-more') $('#menu-card').classList.add('all');
+      if (e.target.id === 'todo') $('#s-review input.v.missing')?.focus();
+    });
+    // "Show" / "Edit" links on a folded step
+    document.addEventListener('click', (e) => {
+      const id = e.target.dataset?.open;
+      if (id === '#s-review') { $('#s-done').hidden = true; show('#s-review'); } else if (id) $(id).classList.remove('done');
     });
 
     // ---- verify: live matrix, one cell per (task, model) ----
     const results = {};
-    function renderMatrix(models, tasks, faults) {
-      const fault = Object.fromEntries(faults.flatMap((f) => f.caughtBy.map((id) => [id, f.what])));
-      const head = `<div class="row head" style="--n:${models.length}"><span>task</span>${models.map((m) => `<span title="${esc(m)}">${esc(m.replace('muse-', ''))}</span>`).join('')}</div>`;
+    const cellOf = (ev) => $(`#c-${ev.side}-${ev.id}-${ev.model.replace(/\W/g, '')}`);
+    function renderMatrix(ms, tasks, fs) {
+      const fault = Object.fromEntries(fs.flatMap((f) => f.caughtBy.map((id) => [id, FAULT[f.id] ?? f.what])));
+      const head = `<div class="row head" style="--n:${ms.length}"><span>Customer task</span>${ms.map((m) => { const [name, ver = ''] = modelName(m).split(' '); return `<span title="${esc(m)}">${esc(name)}<small>${esc(ver)}</small></span>`; }).join('')}</div>`;
       for (const side of ['site', 'twin']) {
-        $(`#m-${side}`).innerHTML = head + tasks.map((t) => `<div class="row" style="--n:${models.length}"><span title="${esc(t.ask)}">${esc(t.id.replace(/-/g, ' '))}${side === 'twin' && fault[t.id] ? `<small>catches: ${esc(fault[t.id])}</small>` : ''}</span>${models.map((m) =>
-          `<button class="cell${side === 'twin' && !fault[t.id] ? ' na' : ''}" id="c-${side}-${t.id}-${m.replace(/\W/g, '')}" data-key="${side}|${t.id}|${m}" disabled aria-label="${side} ${t.id} ${m}"></button>`).join('')}</div>`).join('');
+        $(`#m-${side}`).innerHTML = head + tasks.map((t) => {
+          const na = side === 'twin' && !fault[t.id];
+          const sub = side === 'site' ? `“${esc(t.ask)}”` : na ? 'Nothing planted · not scored' : `Planted: ${esc(fault[t.id])}`;
+          return `<div class="row" style="--n:${ms.length}"><span title="${esc(t.ask)}">${esc(taskName(t.id))}<small>${sub}</small></span>${ms.map((m) =>
+            `<button class="cell${na ? ' na' : ''}" id="c-${side}-${t.id}-${m.replace(/\W/g, '')}" data-key="${side}|${t.id}|${m}" disabled aria-label="${esc(modelName(m))}, ${esc(taskName(t.id))}: waiting"></button>`).join('')}</div>`;
+        }).join('');
       }
+      caught = {};
+      $('#faults').innerHTML = fs.map((f) => `<li data-f="${f.id}">Catches ${esc(FAULT[f.id] ?? f.what)} <b>0/${ms.length}</b></li>`).join('');
     }
     $('#s-verify').addEventListener('click', (e) => {
-      const r = results[e.target.dataset.key];
-      if (!r) return;
       const d = $('#detail');
+      if (e.target.closest('[data-close]')) { d.hidden = true; $('.cell[aria-pressed]')?.removeAttribute('aria-pressed'); return; }
+      const cell = e.target.closest('.cell'), r = cell && results[cell.dataset.key];
+      if (!r) return;
+      $('.cell[aria-pressed]')?.removeAttribute('aria-pressed'); cell.setAttribute('aria-pressed', 'true');
+      cell.closest('.card').after(d); // opens under the tapped card on a phone, as a full row below both on desktop
       d.hidden = false;
-      d.innerHTML = `<b>${esc(r.model)} · ${r.side === 'twin' ? 'broken twin · ' : ''}${esc(r.id)}</b>
-        <div class="hint">Customer: ${esc(r.ask)}</div><q>${esc(r.answer)}</q>
-        <div class="hint">Tools called: ${esc(r.calls.join(' → ') || 'none')}</div>
-        <ul>${r.checks.map((c) => `<li class="${c.ok ? 'y' : 'x'}">${c.ok ? '✓' : '✗'} ${esc(c.label)}</li>`).join('')}</ul>`;
+      d.innerHTML = `<div class="dh"><b>${esc(modelName(r.model))} · ${r.side === 'twin' ? 'Broken twin' : 'Your site'} · ${esc(taskName(r.id))}</b>
+          <button type="button" class="close" data-close aria-label="Close">×</button></div>
+        <div class="msg cust">${esc(r.ask)}</div>
+        <div class="tools">${r.calls.map((c) => `<code>${esc(c)}</code>`).join('<span>→</span>') || '<span>No tools called</span>'}</div>
+        <div class="msg agent">${esc(r.answer)}</div>
+        <ul class="checks">${r.checks.map((c) => `<li class="${c.ok ? 'y' : 'x'}">${c.ok ? '✓' : '✗'} ${esc(c.label)}</li>`).join('')}</ul>
+        ${r.side === 'twin' ? '<p class="hint">On the twin a failed check is good news: it means the planted fault was caught.</p>' : ''}`;
+      d.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
     });
 
     $('#verify-btn').onclick = async () => {
-      $('#verify-btn').disabled = true;
-      $('#detail').hidden = true;
-      $('#s-done').hidden = true;
-      show('#s-verify');
-      let asks = {};
+      const btn = $('#verify-btn');
+      // No new read while testing: its draft would get this run's verdict and install code.
+      const lock = (on) => [$('#go-btn'), ...$$('[data-demo]')].forEach((b) => (b.disabled = on));
+      busy(btn, 'Testing…'); lock(true); $$('.notice').forEach((n) => n.remove());
+      $('#detail').hidden = true; $('#s-done').hidden = true; $('#s-verify').classList.remove('ok', 'fail');
+      for (const k in results) delete results[k];
+      let asks = {}, started = false, total = 0, done = 0;
+      // Before the start event it's a validation error: fix the details, no retry button. Mid-run: say it stopped, offer a rerun.
+      const fail = (msg) => {
+        $$('.cell.run').forEach((c) => c.classList.remove('run'));
+        if (started) $('#v-status').textContent = 'The test stopped before the end.';
+        notice(started ? $('.vstatus') : $('#s-review .bar'), plainErr(msg), started ? () => $('#verify-btn').click() : null);
+      };
       try {
         await stream('/api/verify', { url: draft.url, config: draft.config }, (ev) => {
-          if (ev.type === 'start') { asks = Object.fromEntries(ev.tasks.map((t) => [t.id, t.ask])); renderMatrix(ev.models, ev.tasks, ev.faults); }
-          if (ev.type === 'running') $(`#c-${ev.side}-${ev.id}-${ev.model.replace(/\W/g, '')}`)?.classList.add('run');
+          if (ev.type === 'start') {
+            started = true; faults = ev.faults; models = ev.models; total = ev.tasks.length * ev.models.length * 2;
+            asks = Object.fromEntries(ev.tasks.map((t) => [t.id, t.ask]));
+            renderMatrix(ev.models, ev.tasks, ev.faults);
+            $('#v-bar').style.width = '0'; $('#v-count').textContent = `0 / ${total}`; $('#v-status').textContent = 'Opening test browsers…';
+            const c = draft.config;
+            $('#review-sum').innerHTML = `${esc(c.name)} · ${DAYS.filter((d) => c.hours?.[d]).length} days open · ${c.services.length} service${c.services.length === 1 ? '' : 's'}${c.menu?.length ? ` · ${c.menu.length} menu items` : ''} · <button type="button" data-open="#s-review">Edit</button>`;
+            show('#s-verify'); // only now, so a validation error stays in Review
+          }
+          if (ev.type === 'running') {
+            cellOf(ev)?.classList.add('run');
+            $('#v-status').innerHTML = `<b>${esc(modelName(ev.model))}</b> asks ${ev.side === 'twin' ? 'the broken twin' : 'your site'}: <q>${esc(asks[ev.id])}</q>`;
+          }
           if (ev.type === 'result') {
-            const key = `${ev.side}|${ev.id}|${ev.model}`;
-            results[key] = { ...ev, ask: asks[ev.id] };
-            const cell = $(`#c-${ev.side}-${ev.id}-${ev.model.replace(/\W/g, '')}`);
-            cell.classList.remove('run'); cell.classList.add(ev.pass ? 'ok' : 'no'); cell.textContent = cell.classList.contains('na') ? '–' : ev.pass ? '✓' : '✗'; cell.disabled = false;
+            results[`${ev.side}|${ev.id}|${ev.model}`] = { ...ev, ask: asks[ev.id] };
+            const cell = cellOf(ev), twin = ev.side === 'twin', na = cell.classList.contains('na'), good = twin ? !ev.pass : ev.pass;
+            cell.classList.remove('run');
+            if (!na) cell.classList.add(good ? 'ok' : 'no'); // green ✓ always means good, on either side
+            cell.textContent = na ? '–' : good ? '✓' : '✗';
+            cell.setAttribute('aria-label', `${modelName(ev.model)}, ${taskName(ev.id)}: ${na ? 'not scored' : twin ? (good ? 'fault caught' : 'fault missed') : good ? 'passed' : 'failed'}`);
+            cell.disabled = false;
+            $('#v-bar').style.width = `${(++done / total) * 100}%`; $('#v-count').textContent = `${done} / ${total}`;
+            if (twin && good && !na) for (const f of faults) if (f.caughtBy.includes(ev.id)) {
+              (caught[f.id] ??= new Set()).add(ev.model);
+              const li = $(`#faults [data-f="${f.id}"]`);
+              li.querySelector('b').textContent = `${caught[f.id].size}/${models.length}`;
+              li.classList.toggle('done', caught[f.id].size === models.length);
+            }
           }
           if (ev.type === 'verdict') renderVerdict(ev.verdict, ev.site);
-          if (ev.type === 'error') alert(ev.message);
+          if (ev.type === 'error') fail(ev.message);
         });
-      } catch (err) { alert(err.message); }
-      $('#verify-btn').disabled = false;
+      } catch (err) { fail(err.message); }
+      busy(btn); lock(false);
     };
 
     function renderVerdict(v, site) {
-      const ok = v.verified;
-      $('#verdict').innerHTML = ok
-        ? `<span class="badge"><i>✓</i>Verified agent-ready · ${v.skeptics.length} Meta models</span><span class="hint">Every model got your site right and caught every fault in the broken twin.</span>`
-        : `<span class="badge fail"><i>!</i>Not verified yet</span><span class="hint">${esc(v.skeptics.filter((s) => !s.sitePassed).map((s) => s.model).join(', ') || 'The broken twin was not caught')} ${v.skeptics.some((s) => !s.sitePassed) ? 'got something wrong on your site. Tap a red cell to see what.' : ''}</span>`;
-      $('#install').innerHTML = ok ? `<pre class="snippet">&lt;script src="${esc(location.origin)}/agentready.js" data-site="${esc(site)}" defer&gt;&lt;/script&gt;</pre>
-        <div class="actions"><button id="copy">Copy install tag</button><span class="hint">Paste it before &lt;/body&gt;. Your hours, services and booking go live to AI agents.</span></div>` : '';
-      $('#copy')?.addEventListener('click', (e) => navigator.clipboard.writeText($('.snippet').textContent).then(() => (e.target.textContent = 'Copied')));
-      show('#s-done');
+      const ok = v.verified, n = v.skeptics.length;
+      const siteRuns = Object.values(results).filter((r) => r.side === 'site');
+      const passed = siteRuns.filter((r) => r.pass).length;
+      const caughtAll = Math.min(...v.skeptics.map((s) => parseInt(s.twinCaught, 10))); // "3/3 faults"
+      const wrong = v.skeptics.filter((s) => !s.sitePassed).length;
+      const tag = `<script src="${location.origin}/agentready.js" data-site="${site}" defer><\/script>`; // <\/ so the page's own script tag doesn't end here
+      $('#s-verify').classList.add(ok ? 'ok' : 'fail'); $('#v-bar').style.width = '100%';
+      $('#v-status').textContent = 'Done. Tap any square to read the conversation.';
+      $('#done-title').textContent = ok ? 'Add it to your site' : 'Not ready yet';
+      const card = $('#verdict');
+      card.className = `verdict-card ${ok ? 'ok' : 'fail'}`;
+      card.innerHTML = `<span class="badge"><i>${ok ? '✓' : '!'}</i>${ok ? 'Verified · ready for AI agents' : 'Not verified yet'}</span>
+        <h3>${ok ? `${esc(draft.config.name)} is agent-ready.` : wrong ? `${wrong} of ${n} models got something wrong.` : 'The test missed a planted fault.'}</h3>
+        <p class="stats"><span><b>${passed}/${siteRuns.length}</b> customer tasks passed</span><span><b>${caughtAll}/${faults.length}</b> planted faults caught</span><span><b>${n}</b> Meta models</span></p>
+        ${ok ? `<div class="snip"><pre class="snippet" tabindex="0" aria-label="Install code">${esc(tag).replace('/agentready.js', '/<wbr>agentready.js')}</pre><button type="button" id="copy">Copy code</button></div>
+          <p class="hint">Paste this line just before &lt;/body&gt;, or send it to whoever runs your website. AI agents can then read your hours and prices and book through your site. Every booking still asks the customer to confirm.</p>`
+        : `<p class="hint">${wrong ? 'Tap a red ✗ above to see what the model said, fix that detail, then run the test again.' : 'If the test can’t catch every planted fault, it can’t vouch for your site. Run it again.'}</p>
+          <div class="actions"><button type="button" id="rerun">Run the test again</button><button type="button" class="ghost" id="edit">Edit details</button></div>`}`;
+      $('#copy')?.addEventListener('click', async (e) => {
+        const b = e.currentTarget, pre = $('#verdict .snippet');
+        try { await navigator.clipboard.writeText(pre.textContent); b.textContent = 'Copied ✓'; b.classList.add('copied'); }
+        catch { getSelection().selectAllChildren(pre); b.textContent = 'Press ⌘C'; }
+        setTimeout(() => { b.textContent = 'Copy code'; b.classList.remove('copied'); }, 2000);
+      });
+      $('#rerun')?.addEventListener('click', () => $('#verify-btn').click());
+      $('#edit')?.addEventListener('click', () => { $('#s-done').hidden = true; show('#s-review'); });
+      show('#s-done', 'end'); // keeps the finished matrix in frame above the certificate
+      card.focus({ preventScroll: true });
     }
   </script>
 </body>
