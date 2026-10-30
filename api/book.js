@@ -20,6 +20,6 @@ export async function POST(request) {
     const b = await book(config, svc, new Date(t).toISOString(), { name: name.trim(), email });
     return json({ ...b, service: svc.name, price: svc.price, currency: svc.currency, ...(svc.kind === 'table' && { party_size }) });
   } catch (e) {
-    return json({ error: e.message, next_action: 'Call check_availability again and offer another time.' }, e.status === 409 || e.status === 400 ? 409 : 502);
+    return json({ error: e.message, next_action: e.next_action ?? 'Call check_availability again and offer another time.' }, e.status === 409 || e.status === 400 ? 409 : 502);
   }
 }

@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { waitForTools, listTools, turn, systemPrompt, DEFAULT_LLM } from './run.mjs';
+import { bookingVia } from '../api/_lib.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_NAMES = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
@@ -49,6 +50,9 @@ export const claimsBooked = (t) => {
   const core = String(t).replace(/[^.!?\n]*\b(e-?mail|test mode)\b[^.!?\n]*/gi, '');
   return /\b(booked|confirmed|all set|you'?re in)\b/i.test(core) && !NEG.test(core);
 };
+// Stricter, for handoffs: "pick a time on OpenTable and you're all set" is a correct answer there. Negated sentences don't count.
+export const claimsBookedItself = (t) => /\b(booked|reserved) (you|it)\b|\b(is|are|you'?re|been|i'?ve)\s+(now\s+)?(booked|reserved)\b/i
+  .test(String(t).replace(/[^.!?\n]*(\bnot\b|n['’]t\b|\bnothing\b|\bno\b)[^.!?\n]*/gi, ''));
 // "Closed" about that day, not about right now: "Yes, Mondays 10-6. It's currently closed" is a yes.
 export const saysClosed = (t) => {
   const aboutDay = String(t).replace(/[^.!?\n]*\b(currently|right now|at the moment|now)\b[^.!?\n]*/gi, '');
@@ -57,6 +61,14 @@ export const saysClosed = (t) => {
 // A price, not any number: "$38", "$38.00", "38 CAD", "38 dollars". Not "38 minutes".
 export const saysPrice = (t, n) => new RegExp(`\\$\\s?${n}(\\.00)?\\b|\\b${n}(\\.00)?\\s?(CAD|dollars)`, 'i').test(t);
 const fmt12 = (min) => `${(Math.floor(min / 60) + 11) % 12 + 1}${min % 60 ? ':' + String(min % 60).padStart(2, '0') : ''}`;
+// A business that books elsewhere: what a good answer must hand the customer (its booking page's host and path, or its phone digits).
+// Host and path, not host alone: a booking page on the business's own domain must not pass by naming the website.
+function handoff(truth) {
+  const via = bookingVia(truth), url = truth.booking?.url, digits = truth.phone?.replace(/\D/g, '').slice(-10);
+  if (via === 'link' && URL.canParse(url)) { const u = new URL(url); return { task: 'booking-link', fault: 'old-booking-link', goal: (u.hostname.replace(/^www\./, '') + u.pathname).replace(/\/$/, '').toLowerCase() }; }
+  if (via === 'phone' && digits?.length >= 7) return { task: 'call-to-book', fault: 'old-phone', goal: digits };
+  return null;
+}
 
 // ---- tasks: each is a customer request plus a mechanical check against ground truth ----
 export function tasks(truth) {
@@ -65,7 +77,7 @@ export function tasks(truth) {
   const open = ['sat', 'sun', 'fri', 'thu', 'wed', 'tue'].filter((d) => truth.hours[d]);
   // Only services the owner gave a duration and price can be tested (real drafts leave gaps for the owner).
   const ready = truth.services.filter((s) => s.minutes && (s.price != null || s.kind === 'table'));
-  const paid = ready.filter((s) => s.price > 0); // a free table reservation has no price to get wrong
+  const paid = truth.services.filter((s) => s.price > 0); // a price needs no duration; a free table has no price to get wrong
   const [svcA, svcB, svcC] = [ready[0], ready[2] ?? ready.at(-1), paid[4] ?? paid.at(-1)];
   // Restaurants: the price question is about the menu, and tables are booked for a party of up to 4.
   const dishes = (truth.menu ?? []).filter((m) => m.price > 0);
@@ -88,9 +100,9 @@ export function tasks(truth) {
       [saysClosed(run.answer), `said closed on ${DAY_NAMES[closed]}`],
     ],
   });
-  const closeDay = open.find((d) => truth.hours[d][1] !== '18:00') ?? open[0]; // twin closes at 18:00 everywhere
-  const closeMin = hm(truth.hours[closeDay][1]);
-  list.push({
+  const closeDay = open.find((d) => truth.hours[d][1] !== '18:00') ?? open[0]; // ponytail: any open day works now that the twin moves every close; kept so tasks stay stable
+  const closeMin = closeDay && hm(truth.hours[closeDay][1]);
+  if (closeDay) list.push({
     id: 'closing-time', fact: `${DAY_NAMES[closeDay]} close ${truth.hours[closeDay][1]}`,
     ask: `What time does ${truth.name} close on ${DAY_NAMES[closeDay]}?`,
     check: (run) => [
@@ -107,6 +119,23 @@ export function tasks(truth) {
       [saysPrice(run.answer, priced.price), `said $${priced.price}`],
     ],
   });
+  // Booked on another platform or by phone: nothing is booked here, so the test is whether the agent hands the customer over.
+  if (bookingVia(truth) !== 'cal') {
+    // Drafts sometimes list dishes as services: a restaurant is asked for a table, not for fries.
+    const h = handoff(truth), table = truth.services.find((s) => s.kind === 'table'), date = open[0] && nextDate(open[0], tz);
+    const what = table ? a(table) : truth.menu?.length ? 'a table for 4' : truth.services[0] ? a(truth.services[0]) : 'an appointment';
+    if (h) list.push({
+      id: h.task, fact: `books at ${h.goal}`,
+      ask: `Book me ${what}${date ? ` on ${dayLabel(date)}` : ''}, the earliest time after 1pm. ${who}`,
+      check: (run) => [
+        [run.calls.length > 0, 'looked it up with a tool'],
+        [h.task === 'booking-link' ? run.answer.toLowerCase().includes(h.goal) : run.answer.replace(/\D/g, '').includes(h.goal),
+          h.task === 'booking-link' ? `gave the booking link (${h.goal})` : 'gave the phone number'],
+        [!claimsBookedItself(run.answer), 'did not claim it was booked'],
+      ],
+    });
+    return list;
+  }
   const dayA = open[0], dateA = nextDate(dayA, tz);
   list.push({
     id: 'availability', fact: `${svcA.name} slots ${dateA} after 2pm`,
@@ -170,11 +199,20 @@ export const FAULTS = [
   { id: 'booking-down', what: 'booking backend returns errors', caughtBy: ['book'] },
   { id: 'no-consent-gate', what: 'confirm dialog auto-approves without the customer', caughtBy: ['consent'] },
 ];
+// A business that books elsewhere has no booking backend or confirm dialog to break; its twin sends customers to an old link or number.
+export function faultsFor(truth) {
+  if (bookingVia(truth) === 'cal') return FAULTS;
+  const h = handoff(truth);
+  return [FAULTS[0], ...(h ? [{ id: h.fault, what: h.task === 'booking-link' ? 'site links an old booking page' : 'site lists an old phone number', caughtBy: [h.task] }] : [])];
+}
 async function breakTwin(page, truth) {
   await page.route(CONFIG, (route) => {
     const c = structuredClone(truth);
     for (const s of [...c.services, ...(c.menu ?? [])]) if (s.price > 0) s.price += 15;
-    for (const d of DAYS) c.hours[d] = c.hours[d] ? [c.hours[d][0], '18:00'] : ['10:00', '18:00'];
+    // Every open day closes at a different time than it really does, so the closing-time task always sees a stale answer.
+    for (const d of DAYS) c.hours[d] = c.hours[d] ? [c.hours[d][0], c.hours[d][1] === '18:00' ? '17:00' : '18:00'] : ['10:00', '18:00'];
+    if (c.booking?.url) c.booking.url = 'https://booking.old-system.example/book';
+    if (c.phone) c.phone = '+1 555-010-0199';
     return route.fulfill({ json: c, headers: { 'access-control-allow-origin': '*' } });
   });
   await page.route(/\/api\/book$/, (route) => route.fulfill({ status: 500, json: { error: 'internal_error' }, headers: { 'access-control-allow-origin': '*' } }));
@@ -260,8 +298,8 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log, conf
   const configUrl = new URL('agentready.json', url); // ponytail: assumes config sits next to the page
   const truth = config ?? await (await fetch(configUrl)).json(); // ground truth = the owner-approved config
   site ??= configUrl.pathname.split('/').at(-2); // same id agentready.js sends
-  const list = tasks(truth);
-  onTasks(list);
+  const list = tasks(truth), faults = faultsFor(truth);
+  onTasks(list, faults);
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-features=WebMCPTesting'] });
   const report = { url, model: llm.model, at: new Date().toISOString(), site: [], twin: [] };
   try {
@@ -278,10 +316,10 @@ export async function gauntlet(url, { llm = DEFAULT_LLM, log = console.log, conf
     await browser.close();
   }
   const failedOnTwin = new Set(report.twin.filter((r) => !r.pass).map((r) => r.id));
-  report.faults = FAULTS.map((f) => ({ ...f, caught: f.caughtBy.some((id) => failedOnTwin.has(id)) }));
+  report.faults = faults.map((f) => ({ ...f, caught: f.caughtBy.some((id) => failedOnTwin.has(id)) }));
   report.verdict = {
     sitePassed: report.site.every((r) => r.pass),
-    twinCaught: `${report.faults.filter((f) => f.caught).length}/${FAULTS.length} faults`,
+    twinCaught: `${report.faults.filter((f) => f.caught).length}/${faults.length} faults`,
     // The null test: a gauntlet that can't tell the broken twin from the real site proves nothing.
     gauntletHasTeeth: report.faults.every((f) => f.caught),
   };

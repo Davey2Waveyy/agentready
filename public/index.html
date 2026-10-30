@@ -296,11 +296,11 @@
       <div class="card" id="menu-card" hidden><h3>Menu <span id="menu-count"></span></h3><p class="hint sub">AI agents can quote these prices. Menu items can't be booked.</p>
         <div class="scroll"><table class="services" id="menu"></table></div><button type="button" class="ghost sm" id="menu-more" hidden></button></div>
       <div class="actions bar"><button type="button" class="ghost sm" id="todo" hidden></button><button id="verify-btn">Looks right, test it</button>
-        <span class="hint">3 Meta models will ask your site real customer questions and make test bookings. Nothing is actually booked.</span></div>
+        <span class="hint">3 Meta models will ask your site real customer questions and try to book. Nothing is actually booked.</span></div>
     </section>
 
     <section class="step" id="s-verify" hidden>
-      <div class="step-head"><b>03</b><h2>AI customers test it</h2><p>Three Meta models play customers: hours, prices, a free slot, a booking, and a booking they back out of. Then they repeat it on a broken twin of your site with faults planted on purpose. Your site must pass; the twin must fail.</p></div>
+      <div class="step-head"><b>03</b><h2>AI customers test it</h2><p>Three Meta models play customers asking about hours and prices and trying to book. Then they repeat it on a broken twin of your site with faults planted on purpose. Your site must pass; the twin must fail.</p></div>
       <div class="vstatus"><div class="prog"><i id="v-bar"></i></div><p id="v-status"></p><span id="v-count" aria-live="polite"></span><ul class="faults" id="faults"></ul></div>
       <div class="matrix">
         <div class="card"><h3>Your site <span>· every answer must be right</span></h3><div id="m-site"></div></div>
@@ -337,9 +337,9 @@
     let faults = [], models = [], caught = {};
     // Display names only; ids sent to and received from the API are unchanged.
     const modelName = (m) => m.replace(/^muse-/, '').replace(/-/g, ' ').replace(/\b[a-z]/g, (c) => c.toUpperCase()); // muse-spark-1.3 → Spark 1.3
-    const TASK = { 'closed-day': 'Closed day', 'closing-time': 'Closing time', price: 'Price', availability: 'Free slots', book: 'Books a slot', consent: 'Says no at confirm', 'closed-day-booking': 'Books a closed day' };
+    const TASK = { 'closed-day': 'Closed day', 'closing-time': 'Closing time', price: 'Price', availability: 'Free slots', book: 'Books a slot', consent: 'Says no at confirm', 'closed-day-booking': 'Books a closed day', 'booking-link': 'Gives the booking link', 'call-to-book': 'Says to call' };
     const taskName = (id) => TASK[id] ?? id.replace(/-/g, ' ');
-    const FAULT = { 'stale-info': 'old prices & hours', 'booking-down': 'booking system down', 'no-consent-gate': 'books without asking' };
+    const FAULT = { 'stale-info': 'old prices & hours', 'booking-down': 'booking system down', 'no-consent-gate': 'books without asking', 'old-booking-link': 'old booking link', 'old-phone': 'old phone number' };
     const COL = { name: 'Service', minutes: 'Minutes', price: 'Price', currency: 'Currency', maxParty: 'Max party', calEventSlug: 'Cal.com event' };
     const STEPS = ['#s-read', '#s-review', '#s-verify', '#s-done'];
 
@@ -623,7 +623,7 @@
         <h3>${ok ? `${esc(draft.config.name)} is agent-ready.` : wrong ? `${wrong} of ${n} models got something wrong.` : 'The test missed a planted fault.'}</h3>
         <p class="stats"><span><b>${passed}/${siteRuns.length}</b> customer tasks passed</span><span><b>${caughtAll}/${faults.length}</b> planted faults caught</span><span><b>${n}</b> Meta models</span></p>
         ${ok ? `<div class="snip"><pre class="snippet" tabindex="0" aria-label="Install code">${esc(tag).replace('/agentready.js', '/<wbr>agentready.js')}</pre><button type="button" id="copy">Copy code</button></div>
-          <p class="hint">Paste this line just before &lt;/body&gt;, or send it to whoever runs your website. AI agents can then read your hours and prices and book through your site. Every booking still asks the customer to confirm.</p>`
+          <p class="hint">Paste this line just before &lt;/body&gt;, or send it to whoever runs your website. AI agents can then read your hours and prices and ${draft.config.booking?.provider === 'calcom' ? 'book through your site. Every booking still asks the customer to confirm.' : draft.config.booking?.url ? 'send customers to your booking page.' : 'tell customers to call you to book.'}</p>`
         : `<p class="hint">${wrong ? 'Tap a red ✗ above to see what the model said, fix that detail, then run the test again.' : 'If the test can’t catch every planted fault, it can’t vouch for your site. Run it again.'}</p>
           <div class="actions"><button type="button" id="rerun">Run the test again</button><button type="button" class="ghost" id="edit">Edit details</button></div>`}`;
       $('#copy')?.addEventListener('click', async (e) => {

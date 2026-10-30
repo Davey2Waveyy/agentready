@@ -25,7 +25,7 @@ after(async () => { await browser?.close(); });
 
 // Page serving the real site files; `delayConfigMs` holds back agentready.json
 // (fetched after load, so page.goto can't absorb the delay) to prove waiting.
-async function openTestPage({ delayConfigMs = 0 } = {}) {
+async function openTestPage({ delayConfigMs = 0, config } = {}) {
   const page = await browser.newPage();
   await page.route('**/*', async (route) => {
     const u = new URL(route.request().url());
@@ -38,6 +38,7 @@ async function openTestPage({ delayConfigMs = 0 } = {}) {
       const hit = FILES[u.pathname];
       if (hit) {
         if (delayConfigMs && u.pathname === '/barbershop/agentready.json') await new Promise((r) => setTimeout(r, delayConfigMs));
+        if (config && u.pathname === '/barbershop/agentready.json') return route.fulfill({ json: config });
         return route.fulfill({ status: 200, body: await file(hit[0]), contentType: hit[1] });
       }
       return route.fulfill({ status: 404, body: 'Not found' });
@@ -124,6 +125,29 @@ test('turn() loop drives real WebMCP calls with a stub model', async () => {
     } finally {
       globalThis.fetch = realFetch;
     }
+  } finally {
+    await page.close();
+  }
+});
+
+test('a business booked on another platform gets its link handed over, never a fake booking', async () => {
+  const shop = JSON.parse(await file('public/barbershop/agentready.json'));
+  const url = 'https://www.opentable.ca/r/test-bistro';
+  const page = await openTestPage({ config: { ...shop, booking: { provider: 'opentable', username: 'test-bistro', url } } });
+  const calls = [];
+  page.on('request', (r) => r.url().includes('/api/') && calls.push(r.url()));
+  try {
+    await waitForTools(page);
+    const out = await page.evaluate(async () => {
+      const { tools } = await AgentReady.ready;
+      const run = (name, args) => tools.find((t) => t.name === name).execute(args);
+      return [await run('check_availability', { service_id: 'skin-fade', date: '2030-01-02' }),
+        await run('book_appointment', { service_id: 'skin-fade', start: '2030-01-02T15:00:00Z', name: 'Sam', email: 'sam@example.com' }),
+        !!document.querySelector('dialog.agentready-confirm')];
+    });
+    for (const r of out.slice(0, 2)) assert.deepEqual([r.booked, r.book_at], [false, url]);
+    assert.equal(out[2], false, 'no confirm dialog: nothing is booked here');
+    assert.deepEqual(calls, [], 'no call to our booking API');
   } finally {
     await page.close();
   }

@@ -1,9 +1,9 @@
 // POST {url, config} → {job}. Follow it at /api/job: gauntlet results (3 skeptics × site + broken twin), then the verdict.
 // The draft is served only inside the test browser and always in mock mode: verifying never books for real.
-import { gauntlet, SKEPTICS, FAULTS } from '../agent/gauntlet.mjs';
+import { gauntlet, SKEPTICS } from '../agent/gauntlet.mjs';
 import { validate } from '../agent/generate.mjs';
 import { DEFAULT_LLM } from '../agent/run.mjs';
-import { json, startJob, runningJobs, targetUrl, addSite, verifying, spend } from './_lib.js';
+import { json, startJob, runningJobs, targetUrl, addSite, verifying, spend, bookingVia } from './_lib.js';
 
 export async function POST(request) {
   const { url, config } = await request.json().catch(() => ({}));
@@ -11,7 +11,9 @@ export async function POST(request) {
   if (!target) return json({ error: 'Enter a public http(s) URL.' }, 400);
   const { errors } = validate(config ?? {});
   if (errors.length) return json({ error: `Fix these first: ${errors.join('; ')}` }, 400);
-  if (!config.services?.some((s) => s.minutes && (s.price != null || s.kind === 'table'))) return json({ error: 'Add a duration and price to at least one service (or a table reservation) first.' }, 400);
+  if (!Object.values(config.hours).some(Boolean)) return json({ error: 'Add the hours you’re open first.' }, 400);
+  if (bookingVia(config) === 'phone' && (config.phone?.replace(/\D/g, '').length ?? 0) < 7) return json({ error: 'Add your online booking page or phone number first.' }, 400);
+  if (bookingVia(config) === 'cal' && !config.services?.some((s) => s.minutes && (s.price != null || s.kind === 'table'))) return json({ error: 'Add a duration and price to at least one service (or a table reservation) first.' }, 400);
   if (runningJobs() >= 3) return json({ error: 'Busy verifying other sites. Try again in a few minutes.' }, 429);
   const limited = spend(request, 'verify');
   if (limited) return json({ error: limited }, 429);
@@ -24,7 +26,7 @@ export async function POST(request) {
       for (const model of SKEPTICS) {
         runs.push(await gauntlet(target, {
           config, site, api: `http://localhost:${process.env.PORT || 3100}`, llm: { ...DEFAULT_LLM, model }, log: () => {},
-          onTasks: (tasks) => started || (started = true, send({ type: 'start', models: SKEPTICS, tasks: tasks.map(({ id, ask }) => ({ id, ask })), faults: FAULTS })),
+          onTasks: (tasks, faults) => started || (started = true, send({ type: 'start', models: SKEPTICS, tasks: tasks.map(({ id, ask }) => ({ id, ask })), faults })),
           onRunning: (side, id) => send({ type: 'running', model, side, id }),
           onResult: (side, r) => send({ type: 'result', model, side, ...r }),
         }));

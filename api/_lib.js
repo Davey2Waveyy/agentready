@@ -27,6 +27,13 @@ export function siteConfig(id) {
 export const verifying = new Set();
 // Fake slots + bookings (flagged mock:true): no Cal.com username, under verification, or AGENTREADY_MOCK=1 (tests)
 export const isMock = (config) => process.env.AGENTREADY_MOCK === '1' || !config.booking?.username || verifying.has(config);
+// Where bookings happen: through our Cal.com proxy ('cal'), on the business's own booking page elsewhere ('link'), or by phone.
+// ponytail: Cal.com is the only booking API wired up; OpenTable, Squire, Fresha… stay a link until one opens an API to us
+export const bookingVia = (config) => config.booking?.provider === 'calcom' ? 'cal' : /^https?:\/\/[^/\s]/i.test(config.booking?.url ?? '') ? 'link' : 'phone';
+const elsewhere = (config) => Object.assign(new Error(`${config.name} doesn't take bookings here.`), {
+  status: 409,
+  next_action: config.booking?.url ? `Give the customer the booking page: ${config.booking.url}` : `Ask the customer to call ${config.phone || 'the business'}.`,
+});
 
 // ---- background jobs: generate/verify outlive one HTTP request (Modal cuts requests at 150 s) ----
 const jobs = new Map();
@@ -129,6 +136,7 @@ const booked = (config) => mockBooked.get(config) ?? mockBooked.set(config, new 
 
 // Slots for one local date. Query a UTC window around it, keep what falls on that date locally (no offset math).
 export async function slots(config, svc, date) {
+  if (bookingVia(config) !== 'cal') throw elsewhere(config);
   const tz = config.timezone;
   const from = new Date(`${date}T00:00:00Z`).getTime() - 864e5;
   const to = from + 3 * 864e5;
@@ -151,6 +159,7 @@ export async function slots(config, svc, date) {
 }
 
 export async function book(config, svc, start, attendee) {
+  if (bookingVia(config) !== 'cal') throw elsewhere(config);
   if (isMock(config)) {
     const t = Date.parse(start);
     if (booked(config).has(t)) throw Object.assign(new Error('That time was just taken.'), { status: 409 });

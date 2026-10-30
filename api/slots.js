@@ -11,6 +11,6 @@ export async function GET(request) {
   try {
     return json({ service: svc.id, date, slots: await slots(config, svc, date), ...(isMock(config) && { mock: true }) });
   } catch (e) {
-    return json({ error: e.message }, 502);
+    return e.status === 409 ? json({ error: e.message, next_action: e.next_action }, 409) : json({ error: e.message }, 502);
   }
 }

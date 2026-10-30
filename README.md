@@ -12,6 +12,8 @@ People now ask assistants to "book me a haircut tomorrow at 3". Local business s
 | `check_availability` | read: open times for a service on a date |
 | `book_appointment` | **write**: opens an on-page confirmation; nothing is booked until a human clicks Confirm. Tables take a `party_size` |
 
+Bookings go through Cal.com. A business that takes bookings on another platform (OpenTable, Squire, Fresha…) or only by phone gets no fake booking: `check_availability` and `book_appointment` hand the customer its booking link or phone number, and nothing is booked here.
+
 Built for the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026), Indie track.
 
 **Live:** https://davey2waveyy--agentready-web.us-east.modal.run (the public demo runs in test mode: nothing is booked on a real calendar).
@@ -62,7 +64,7 @@ Muse Spark reads up to 4 pages of the site (text, JSON-LD, booking links and a f
 npm run gauntlet
 ```
 
-Three different Meta models (`muse-spark-1.3`, `muse-wonder-1.0`, `muse-spark-1.2`) act as skeptics. Each runs 7 customer tasks (hours, prices, live availability, booking, declined booking, booking on a closed day) against the site, and every answer is checked mechanically against the owner's config and the live booking system. Then it runs the same tasks against a **broken twin** (stale prices and hours, booking backend down, consent dialog auto-approving). The site is only "verified" if every skeptic passes it and catches the twin on every fault. `--models muse-spark-1.3` runs one model; `npm run gauntlet -- salon` tests the salon. Runs in mock mode, so nothing is really booked. Report goes to `reports/`.
+Three different Meta models (`muse-spark-1.3`, `muse-wonder-1.0`, `muse-spark-1.2`) act as skeptics. Each runs 7 customer tasks (hours, prices, live availability, booking, declined booking, booking on a closed day) against the site, and every answer is checked mechanically against the owner's config and the live booking system. Then it runs the same tasks against a **broken twin** (stale prices and hours, booking backend down, consent dialog auto-approving). A business that books on another platform or by phone is tested on the handoff instead: the agent must give the customer the real booking link or number without claiming a booking, and its twin serves an old link or number. The site is only "verified" if every skeptic passes it and catches the twin on every fault. `--models muse-spark-1.3` runs one model; `npm run gauntlet -- salon` tests the salon. Runs in mock mode, so nothing is really booked. Report goes to `reports/`.
 
 To verify a generated draft before it goes live: `npm run gauntlet -- --config reports/draft-….json`. If the site hasn't installed AgentReady, the test browser adds the script tag itself, so nothing on the owner's site changes until they approve.
 
@@ -83,7 +85,7 @@ To verify a generated draft before it goes live: `npm run gauntlet -- --config r
 
 Muse never invents a value: when a site doesn't say (most shops keep prices on their booking platform), it leaves the field empty and asks the owner. It also caught real contradictions the owners would want to know about, like a footer and a contact page listing different hours.
 
-**Verified by all 3 models, broken twin caught 3/3 every time:** Glassbox Barbershop, Ky & Co. Barbershop, Electric Diner, HAMBRGR (menu prices quoted via `get_menu`, tables booked for a party of 4). Verify needs a duration and price for at least one service, which the owner normally fills in at review; for these runs we filled only those blanks (durations, Ky & Co's prices from its public Squire listing, and how long a table is held and the largest online party for the restaurants). Everything else came from the sites.
+**Verified by all 3 models on Oct 27, broken twin caught 3/3 every time:** Glassbox Barbershop, Ky & Co. Barbershop, Electric Diner, HAMBRGR (menu prices quoted via `get_menu`). Those runs booked against a test calendar, as if each shop used Cal.com. None of them does (they book on Squire or OpenTable), so the test now checks that agents hand customers their real booking link instead, and these four need re-running. For those runs we filled only the blanks the owner normally fills at review (durations, Ky & Co's prices from its public Squire listing, and how long a table is held and the largest online party for the restaurants). Everything else came from the sites.
 
 What real sites taught us, now fixed: booking buttons link to dozens of platforms (Muse now sees every outside link instead of a fixed list), prices often live only on the booking page (the reader now opens one booking page), images lazy-load (it scrolls first), and a blocked page used to derail the rest of the crawl. Not fixed: Squire and OpenTable block automated browsers, so those prices come from the owner.
 

@@ -88,6 +88,14 @@
       : !Number.isInteger(n) || n < 1 ? { error: 'party_size_required', next_action: 'Ask how many people, then pass party_size.' }
       : s.maxParty && n > s.maxParty ? { error: 'party_too_large', next_action: `Online booking takes up to ${s.maxParty} people. Ask the customer to call ${c.phone || c.name}.` }
       : null;
+    // Booked on another platform (OpenTable, Squire, Fresha…) or only by phone: hand the customer over, never fake a booking.
+    // Same rule as bookingVia in api/_lib.js.
+    const link = c.booking?.provider !== 'calcom' && /^https?:\/\/[^/\s]/i.test(c.booking?.url ?? '') && c.booking.url;
+    const elsewhere = c.booking?.provider !== 'calcom' && {
+      booked: false, ...(link ? { book_at: link } : { phone: c.phone ?? null }),
+      next_action: link ? `Nothing was booked: ${c.name} takes bookings at ${link}. Give the customer this link to pick a time and book.`
+        : `Nothing was booked: ${c.name} doesn't take bookings online. ${c.phone ? `Ask the customer to call ${c.phone}.` : 'Ask the customer to contact the business directly.'}`,
+    };
     const menu = c.menu?.length ? [{
       name: 'get_menu',
       description: `Menu items at ${c.name} with prices. Read only: these are not bookable.`,
@@ -114,7 +122,8 @@
       ...menu,
       {
         name: 'check_availability',
-        description: `Open appointment times for a service on one date (business timezone ${c.timezone}). Service ids: ${serviceIds}.`,
+        description: elsewhere ? `${c.name} doesn't show open times here: this returns where the customer books instead. Service ids: ${serviceIds}.`
+          : `Open appointment times for a service on one date (business timezone ${c.timezone}). Service ids: ${serviceIds}.`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -126,6 +135,7 @@
         },
         annotations: { readOnlyHint: true },
         async execute({ service_id, date, party_size }) {
+          if (elsewhere) return elsewhere;
           const s = service(service_id);
           if (!s) return { error: 'unknown_service', next_action: `Use one of: ${serviceIds}` };
           if (party_size !== undefined && partyError(s, party_size)) return partyError(s, party_size);
@@ -137,7 +147,8 @@
       },
       {
         name: 'book_appointment',
-        description: 'Book an appointment or table. Opens a confirmation dialog the customer must approve on the page; nothing is booked until they click Confirm. Use a start value returned by check_availability.',
+        description: elsewhere ? `${c.name} takes bookings ${link ? 'on its own booking page' : 'by phone'}: this returns the ${link ? 'link' : 'number'} to give the customer. Nothing is booked here.`
+          : 'Book an appointment or table. Opens a confirmation dialog the customer must approve on the page; nothing is booked until they click Confirm. Use a start value returned by check_availability.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -151,6 +162,7 @@
         },
         annotations: { readOnlyHint: false },
         async execute({ service_id, start, name, email, party_size }) {
+          if (elsewhere) return elsewhere;
           const s = service(service_id);
           if (!s) return { error: 'unknown_service', next_action: `Use one of: ${serviceIds}` };
           if (partyError(s, party_size)) return partyError(s, party_size);

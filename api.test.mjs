@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GET } from './api/slots.js';
 import { POST } from './api/book.js';
+import { POST as verify } from './api/verify.js';
 import { siteConfig, addSite, local as localTz, spend } from './api/_lib.js';
 
 const config = siteConfig('barbershop');
@@ -88,4 +89,23 @@ test('model runs are capped per visitor and per day', () => {
   assert.match(spend(req('9.9.9.9, 1.1.1.1'), 'verify'), /3 free tests/); // a faked first entry doesn't reset it
   for (let i = 0; i < 12; i++) assert.equal(spend(req(`2.2.2.${i}`), 'verify'), null);
   assert.match(spend(req('8.8.8.8'), 'verify'), /all of today/);
+});
+
+test('a business booked on another platform never gets fake slots or a Cal.com call', async (t) => {
+  const site = addSite({ ...config, name: 'Test Bistro', booking: { provider: 'opentable', username: 'test-bistro', url: 'https://www.opentable.ca/r/test-bistro' } });
+  const out = t.mock.method(globalThis, 'fetch', () => { throw new Error('called out'); });
+  const d = tomorrowOpen();
+  const res = await slots({ site, service: 'skin-fade', date: d.date });
+  assert.equal(res.status, 409);
+  assert.match((await res.json()).next_action, /opentable\.ca/);
+  const b = await book({ site, service_id: 'skin-fade', start: new Date(Date.now() + 864e5).toISOString(), name: 'Sam', email: 'sam@example.com' });
+  assert.equal(b.status, 409);
+  assert.equal(out.mock.callCount(), 0);
+});
+
+test('verify refuses a business the test could not check end to end', async () => {
+  const run = async (c) => (await verify(new Request('http://x/api/verify', { method: 'POST', body: JSON.stringify({ url: 'https://example.com/', config: { ...config, ...c } }) }))).json();
+  assert.match((await run({ booking: { provider: null, username: '', url: null }, phone: null })).error, /booking page or phone/);
+  assert.match((await run({ booking: { provider: 'fresha', username: '', url: 'fresha.com/a/x' }, phone: '' })).error, /booking page or phone/); // not a web address
+  assert.match((await run({ hours: Object.fromEntries(Object.keys(config.hours).map((d) => [d, null])) })).error, /hours/);
 });
