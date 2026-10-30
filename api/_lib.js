@@ -42,6 +42,28 @@ export function startJob(work) {
   });
   return id;
 }
+// ---- daily limits: every read and test spends Model API credits, and the demo is public ----
+// ponytail: one JSON file of counts per UTC day; IP rotation beats the per-IP cap, the daily cap still holds
+const LIMITS = { generate: { ip: 5, day: 50, what: 'site reads' }, verify: { ip: 3, day: 15, what: 'tests' } };
+const USAGE = DATA && `${DATA}/usage.json`;
+let usage = {};
+try { usage = JSON.parse(readFileSync(USAGE, 'utf8')); } catch {}
+// Modal's proxy replaces X-Forwarded-For with the address it saw (checked: a faked one never arrives). X-Real-IP passes through faked.
+const clientIp = (request) => request.headers.get('x-forwarded-for')?.split(',').at(-1).trim() || 'local';
+// Counts one run; returns the error to show instead when a limit is reached.
+export function spend(request, kind) {
+  const day = new Date().toISOString().slice(0, 10), ip = clientIp(request), { what, ...max } = LIMITS[kind];
+  if (usage.day !== day) usage = { day };
+  const all = usage[kind] ?? 0, mine = usage[`${kind} ${ip}`] ?? 0;
+  console.log(`[limit] ${kind} ${ip} ${mine + 1}/${max.ip} today, ${all + 1}/${max.day} total`);
+  if (all >= max.day) return `The public demo used all of today's ${what}. Try again tomorrow.`;
+  if (mine >= max.ip) return `You've used today's ${max.ip} free ${what}. Try again tomorrow.`;
+  usage[kind] = all + 1;
+  usage[`${kind} ${ip}`] = mine + 1;
+  if (USAGE) writeFileSync(USAGE, JSON.stringify(usage));
+  return null;
+}
+
 // NDJSON of a job's events from index `from`, following live ones. Ends after maxMs; the client reconnects with from=<events seen>.
 export function followJob(id, from = 0, maxMs = 100_000) {
   const job = jobs.get(id);

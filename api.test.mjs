@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GET } from './api/slots.js';
 import { POST } from './api/book.js';
-import { siteConfig, addSite, local as localTz } from './api/_lib.js';
+import { siteConfig, addSite, local as localTz, spend } from './api/_lib.js';
 
 const config = siteConfig('barbershop');
 const local = (when) => localTz(when, config.timezone);
@@ -58,7 +58,7 @@ test('book validates, books once, refuses double booking', async () => {
 
 test('each site gets its own services and calendar', async () => {
   const salon = siteConfig('salon');
-  const d = [...Array(8)].map((_, i) => local(Date.now() + i * 864e5)).find((x) => salon.hours[x.day] && config.hours[x.day]);
+  const d = [...Array(8)].map((_, i) => local(Date.now() + (i + 1) * 864e5)).find((x) => salon.hours[x.day] && config.hours[x.day]);
   assert.equal((await slots({ site: 'salon', service: 'gel-manicure', date: d.date })).status, 200);
   assert.equal((await slots({ service: 'gel-manicure', date: d.date })).status, 400); // barbershop has no gel manicure
   assert.equal((await slots({ site: 'nope', service: 'skin-fade', date: d.date })).status, 404);
@@ -80,4 +80,12 @@ test('a table is booked for a party, within the online limit', async () => {
   const res = await book({ ...ok, party_size: 4 });
   assert.equal(res.status, 200);
   assert.equal((await res.json()).party_size, 4);
+});
+
+test('model runs are capped per visitor and per day', () => {
+  const req = (xff) => new Request('http://x/', { headers: { 'x-forwarded-for': xff } });
+  for (let i = 0; i < 3; i++) assert.equal(spend(req('6.6.6.6, 1.1.1.1'), 'verify'), null);
+  assert.match(spend(req('9.9.9.9, 1.1.1.1'), 'verify'), /3 free tests/); // a faked first entry doesn't reset it
+  for (let i = 0; i < 12; i++) assert.equal(spend(req(`2.2.2.${i}`), 'verify'), null);
+  assert.match(spend(req('8.8.8.8'), 'verify'), /all of today/);
 });

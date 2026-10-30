@@ -3,7 +3,7 @@
 import { gauntlet, SKEPTICS, FAULTS } from '../agent/gauntlet.mjs';
 import { validate } from '../agent/generate.mjs';
 import { DEFAULT_LLM } from '../agent/run.mjs';
-import { json, startJob, runningJobs, targetUrl, addSite, verifying } from './_lib.js';
+import { json, startJob, runningJobs, targetUrl, addSite, verifying, spend } from './_lib.js';
 
 export async function POST(request) {
   const { url, config } = await request.json().catch(() => ({}));
@@ -13,6 +13,8 @@ export async function POST(request) {
   if (errors.length) return json({ error: `Fix these first: ${errors.join('; ')}` }, 400);
   if (!config.services?.some((s) => s.minutes && (s.price != null || s.kind === 'table'))) return json({ error: 'Add a duration and price to at least one service (or a table reservation) first.' }, 400);
   if (runningJobs() >= 3) return json({ error: 'Busy verifying other sites. Try again in a few minutes.' }, 429);
+  const limited = spend(request, 'verify');
+  if (limited) return json({ error: limited }, 429);
   const site = addSite(config);
   return json({ job: startJob(async (send) => {
     verifying.add(config);
